@@ -15,7 +15,7 @@ int numberCommands = 0;
 int headQueue = 0;
 
 int insertCommand(char* data) {
-    if(numberCommands != MAX_COMMANDS) {
+    if(numberCommands != MAX_COMMANDS){
         strcpy(inputCommands[numberCommands++], data);
         return 1;
     }
@@ -35,11 +35,15 @@ void errorParse(){
     exit(EXIT_FAILURE);
 }
 
-void processInput(){
+void processInput(FILE *inputf){
     char line[MAX_INPUT_SIZE];
+    FILE *file = fopen("inputf", "r");
+
+    /*if (file == NULL){
+    }*/
 
     /* break loop with ^Z or ^D */
-    while (fgets(line, sizeof(line)/sizeof(char), stdin)) {
+    while (fgets(line,sizeof(line)/sizeof(char),file)) {
         char token, type;
         char name[MAX_INPUT_SIZE];
 
@@ -79,6 +83,7 @@ void processInput(){
             }
         }
     }
+    fclose(file);
 }
 
 void applyCommands(){
@@ -132,14 +137,16 @@ void applyCommands(){
     }
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc,char* argv[]) {
     /* init filesystem */
+    char *inputf = argv[1];
+    char *outputf = argv[2];
     init_fs();
 
     /* process input and print tree */
-    processInput();
+    processInput(inputf);
     applyCommands();
-    print_tecnicofs_tree(stdout);
+    print_tecnicofs_tree(outputf);
 
     /* release allocated memory */
     destroy_fs();
