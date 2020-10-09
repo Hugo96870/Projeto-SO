@@ -86,9 +86,15 @@ void processInput(FILE *inputf){
     fclose(file);
 }
 
-void applyCommands(){
+void applyCommands(FILE *outputf){
+    phread_mutex_lock(lock);
     while (numberCommands > 0){
         const char* command = removeCommand();
+        if(numberCommands == 1){
+        }
+        else{
+            pthread_mutex_unlock(lock);
+        }
         if (command == NULL){
             continue;
         }
@@ -97,7 +103,7 @@ void applyCommands(){
         char name[MAX_INPUT_SIZE];
         int numTokens = sscanf(command, "%c %s %c", &token, name, &type);
         if (numTokens < 2) {
-            fprintf(stderr, "Error: invalid command in Queue\n");
+            fputs("Error: invalid command in Queue\n", file);
             exit(EXIT_FAILURE);
         }
 
@@ -106,34 +112,44 @@ void applyCommands(){
             case 'c':
                 switch (type) {
                     case 'f':
-                        printf("Create file: %s\n", name);
+                        pthread_mutex_lock(lockswitch);
+                        fprintf(file,"Create file: %s\n", name);
                         create(name, T_FILE);
+                        p_thread_mutex_unlock(lockswitch);
                         break;
                     case 'd':
-                        printf("Create directory: %s\n", name);
+                        pthread_mutex_lock(lockswitch);
+                        fprintf(file,"Create directory: %s\n", name);
                         create(name, T_DIRECTORY);
+                        p_thread_mutex_unlock(lockswitch);
                         break;
                     default:
-                        fprintf(stderr, "Error: invalid node type\n");
+                        fprintf(file, "Error: invalid node type\n");
                         exit(EXIT_FAILURE);
                 }
                 break;
-            case 'l': 
+            case 'l':
+                pthread_mutex_lock(lockswitch);
                 searchResult = lookup(name);
+                p_thread_mutex_unlock(lockswitch);
                 if (searchResult >= 0)
-                    printf("Search: %s found\n", name);
+                    fprintf(file, "Search: %s found\n", name);
                 else
-                    printf("Search: %s not found\n", name);
+                    fprintf(file, "Search: %s not found\n", name);
                 break;
             case 'd':
-                printf("Delete: %s\n", name);
+                pthread_mutex_lock(lockswitch);
+                fprintf(file, "Delete: %s\n", name);
                 delete(name);
+                p_thread_mutex_unlock(lockswitch);
                 break;
             default: { /* error */
-                fprintf(stderr, "Error: command to apply\n");
+                fprintf(file, "Error: command to apply\n");
                 exit(EXIT_FAILURE);
             }
         }
+        if(numberCommands == 1)
+            pthread_mutex_unlock(lock);
     }
 }
 
@@ -141,11 +157,23 @@ int main(int argc,char* argv[]) {
     /* init filesystem */
     char *inputf = argv[1];
     char *outputf = argv[2];
+    int numthreads=argv[3];
+    pthread_mutex_t lock;
+    pthread_mutex_t lockswitch;
+    pthread_mutex_init(&lock,NULL);
+    pthread_mutex_init(&lockswitch,NULL);
     init_fs();
 
     /* process input and print tree */
     processInput(inputf);
-    applyCommands();
+    /* */
+    pthread_create(...);
+    pthread_create(...);
+    pthread_create(...);
+    pthread_create(...);
+    FILE *file = fopen("outputf","w");
+    applyCommands(outputf);
+    fclose(file);
     print_tecnicofs_tree(outputf);
 
     /* release allocated memory */
