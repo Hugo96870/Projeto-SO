@@ -3,6 +3,9 @@
 #include <getopt.h>
 #include <string.h>
 #include <ctype.h>
+#include <time.h>
+#include <math.h>
+#include <pthread.h>
 #include "fs/operations.h"
 
 #define MAX_COMMANDS 150000
@@ -86,7 +89,7 @@ void processInput(FILE *inputf){
     fclose(file);
 }
 
-void applyCommands(){
+void* applyCommands(){
     
     while (numberCommands > 0){
         const char* command = removeCommand();
@@ -136,15 +139,16 @@ void applyCommands(){
             }
         }
     }
+    return 0;
 }
 
-void startThreads(int nrT){
+void startThreads(int nrT,clock_t begin){
     int i;
     pthread_t tid[nrT];
+    begin = clock();
     for(i = 0; i < nrT; i++){
         pthread_create(&tid[i],0,applyCommands,NULL);
     }
-
     for(i = 0; i < nrT; i++){
         pthread_join(tid[i],NULL);
     }
@@ -152,20 +156,25 @@ void startThreads(int nrT){
 
 int main(int argc,char* argv[]) {
     /* init filesystem */
-    FILE *inputf = argv[1];
-    FILE outputf = argv[2];
-    pthread_mutex_t lock;
-    pthread_mutex_t lockswitch;
-    pthread_mutex_init(&lock,NULL);
-    pthread_mutex_init(&lockswitch,NULL);
+    double timeSpent;
+    clock_t begin;
+    FILE *inputf;
+    FILE *outputf;
+    inputf = fopen(argv[1],"r");
+    outputf = fopen(argv[2],"w");
     init_fs();
 
-    / process input and print tree /
+    /* process input and print tree */
     processInput(inputf);
-    startThreads(atoi(argv[3]));
+
+    startThreads(atoi(argv[3]),begin);
+    clock_t end=clock();
+    timeSpent=(double)(end-begin) / CLOCKS_PER_SEC;
+    timeSpent = floor(10000*timeSpent)/10000;
+    printf("TecnicoFS completed in %f seconds.",timeSpent);
     print_tecnicofs_tree(outputf);
 
-    / release allocated memory */
+    /* release allocated memory */
     destroy_fs();
     exit(EXIT_SUCCESS);
 }
