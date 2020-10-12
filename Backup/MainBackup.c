@@ -3,6 +3,9 @@
 #include <getopt.h>
 #include <string.h>
 #include <ctype.h>
+#include <time.h>
+#include <math.h>
+#include <pthread.h>
 #include "fs/operations.h"
 
 #define MAX_COMMANDS 150000
@@ -37,13 +40,12 @@ void errorParse(){
 
 void processInput(FILE *inputf){
     char line[MAX_INPUT_SIZE];
-    FILE *file = fopen("inputf", "r");
 
     /*if (file == NULL){
     }*/
 
     /* break loop with ^Z or ^D */
-    while (fgets(line,sizeof(line)/sizeof(char),file)) {
+    while (fgets(line,sizeof(line)/sizeof(char),inputf)) {
         char token, type;
         char name[MAX_INPUT_SIZE];
 
@@ -83,34 +85,33 @@ void processInput(FILE *inputf){
             }
         }
     }
-    fclose(file);
 }
 
-void applyCommands(){
-    while (numberCommands > 0){
-        const char* command = removeCommand();
-        if (command == NULL){
-            continue;
-        }
+void* applyCommands(){
+    int tid;
+    tid=pthread_self();
 
-        char token, type;
-        char name[MAX_INPUT_SIZE];
-        int numTokens = sscanf(command, "%c %s %c", &token, name, &type);
-        if (numTokens < 2) {
-            fprintf(stderr, "Error: invalid command in Queue\n");
-            exit(EXIT_FAILURE);
-        }
+    const char* command = removeCommand();
 
+    char token, type;
+    char name[MAX_INPUT_SIZE];
+    int numTokens = sscanf(command, "%c %s %c", &token, name, &type);
+    if (numTokens < 2) {
+        fprintf(stderr, "Error: invalid command in Queue\n");
+        exit(EXIT_FAILURE);
+    }
         int searchResult;
         switch (token) {
             case 'c':
                 switch (type) {
                     case 'f':
                         printf("Create file: %s\n", name);
+                        printf("tarefa : %d criei\n",tid);
                         create(name, T_FILE);
                         break;
                     case 'd':
                         printf("Create directory: %s\n", name);
+                        printf("tarefa : %d criei\n",tid);
                         create(name, T_DIRECTORY);
                         break;
                     default:
@@ -118,7 +119,7 @@ void applyCommands(){
                         exit(EXIT_FAILURE);
                 }
                 break;
-            case 'l': 
+            case 'l':
                 searchResult = lookup(name);
                 if (searchResult >= 0)
                     printf("Search: %s found\n", name);
@@ -134,20 +135,41 @@ void applyCommands(){
                 exit(EXIT_FAILURE);
             }
         }
+    return 0;
+}
+
+void startThreads(int nrT){
+    int i;
+    pthread_t tid[nrT];
+    while (numberCommands >=nrT){
+        for(i = 0; i < nrT; i++){
+            pthread_create(&tid[i],0,applyCommands,NULL);
+        }
+        for(i = 0; i < nrT; i++){
+            pthread_join(tid[i],NULL);
+        }
     }
+    for(i = 0; i < numberCommands; i++){
+        pthread_create(&tid[i],0,applyCommands,NULL);
+    }
+    for(i = 0; i < numberCommands; i++){
+        pthread_join(tid[i],NULL);
+    }    
 }
 
 int main(int argc,char* argv[]) {
     /* init filesystem */
-    char *inputf = argv[1];
-    char *outputf = argv[2];
+    FILE *inputf;
+    FILE *outputf;
     init_fs();
-
+    inputf = fopen(argv[1],"r");
     /* process input and print tree */
     processInput(inputf);
-    applyCommands();
+    fclose(inputf);
+    startThreads(atoi(argv[3]));
+    outputf = fopen(argv[2],"w");
     print_tecnicofs_tree(outputf);
-
+    fclose(outputf);
     /* release allocated memory */
     destroy_fs();
     exit(EXIT_SUCCESS);

@@ -90,19 +90,16 @@ void processInput(FILE *inputf){
 void* applyCommands(){
     int tid;
     tid=pthread_self();
-    while (numberCommands > 0){
-        const char* command = removeCommand();
-        if (command == NULL){
-            continue;
-        }
 
-        char token, type;
-        char name[MAX_INPUT_SIZE];
-        int numTokens = sscanf(command, "%c %s %c", &token, name, &type);
-        if (numTokens < 2) {
-            fprintf(stderr, "Error: invalid command in Queue\n");
-            exit(EXIT_FAILURE);
-        }
+    const char* command = removeCommand();
+
+    char token, type;
+    char name[MAX_INPUT_SIZE];
+    int numTokens = sscanf(command, "%c %s %c", &token, name, &type);
+    if (numTokens < 2) {
+        fprintf(stderr, "Error: invalid command in Queue\n");
+        exit(EXIT_FAILURE);
+    }
         int searchResult;
         switch (token) {
             case 'c':
@@ -138,19 +135,26 @@ void* applyCommands(){
                 exit(EXIT_FAILURE);
             }
         }
-    }
     return 0;
 }
 
 void startThreads(int nrT){
     int i;
     pthread_t tid[nrT];
-    for(i = 0; i < nrT; i++){
+    while (numberCommands >=nrT){
+        for(i = 0; i < nrT; i++){
+            pthread_create(&tid[i],0,applyCommands,NULL);
+        }
+        for(i = 0; i < nrT; i++){
+            pthread_join(tid[i],NULL);
+        }
+    }
+    for(i = 0; i < numberCommands; i++){
         pthread_create(&tid[i],0,applyCommands,NULL);
     }
-    for(i = 0; i < nrT; i++){
+    for(i = 0; i < numberCommands; i++){
         pthread_join(tid[i],NULL);
-    }
+    }    
 }
 
 int main(int argc,char* argv[]) {
