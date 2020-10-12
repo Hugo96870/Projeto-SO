@@ -40,13 +40,12 @@ void errorParse(){
 
 void processInput(FILE *inputf){
     char line[MAX_INPUT_SIZE];
-    FILE *file = fopen("inputf", "r");
 
     /*if (file == NULL){
     }*/
 
     /* break loop with ^Z or ^D */
-    while (fgets(line,sizeof(line)/sizeof(char),file)) {
+    while (fgets(line,sizeof(line)/sizeof(char),inputf)) {
         char token, type;
         char name[MAX_INPUT_SIZE];
 
@@ -86,11 +85,11 @@ void processInput(FILE *inputf){
             }
         }
     }
-    fclose(file);
 }
 
 void* applyCommands(){
-    
+    int tid;
+    tid=pthread_self();
     while (numberCommands > 0){
         const char* command = removeCommand();
         if (command == NULL){
@@ -104,17 +103,18 @@ void* applyCommands(){
             fprintf(stderr, "Error: invalid command in Queue\n");
             exit(EXIT_FAILURE);
         }
-
         int searchResult;
         switch (token) {
             case 'c':
                 switch (type) {
                     case 'f':
                         printf("Create file: %s\n", name);
+                        printf("tarefa : %d criei\n",tid);
                         create(name, T_FILE);
                         break;
                     case 'd':
                         printf("Create directory: %s\n", name);
+                        printf("tarefa : %d criei\n",tid);
                         create(name, T_DIRECTORY);
                         break;
                     default:
@@ -142,10 +142,9 @@ void* applyCommands(){
     return 0;
 }
 
-void startThreads(int nrT,clock_t begin){
+void startThreads(int nrT){
     int i;
     pthread_t tid[nrT];
-    begin = clock();
     for(i = 0; i < nrT; i++){
         pthread_create(&tid[i],0,applyCommands,NULL);
     }
@@ -156,24 +155,17 @@ void startThreads(int nrT,clock_t begin){
 
 int main(int argc,char* argv[]) {
     /* init filesystem */
-    double timeSpent;
-    clock_t begin;
     FILE *inputf;
     FILE *outputf;
-    inputf = fopen(argv[1],"r");
-    outputf = fopen(argv[2],"w");
     init_fs();
-
+    inputf = fopen(argv[1],"r");
     /* process input and print tree */
     processInput(inputf);
-
-    startThreads(atoi(argv[3]),begin);
-    clock_t end=clock();
-    timeSpent=(double)(end-begin) / CLOCKS_PER_SEC;
-    timeSpent = floor(10000*timeSpent)/10000;
-    printf("TecnicoFS completed in %f seconds.",timeSpent);
+    fclose(inputf);
+    startThreads(atoi(argv[3]));
+    outputf = fopen(argv[2],"w");
     print_tecnicofs_tree(outputf);
-
+    fclose(outputf);
     /* release allocated memory */
     destroy_fs();
     exit(EXIT_SUCCESS);
