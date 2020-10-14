@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <pthread.h>
 
 /* Given a path, fills pointers with strings for the parent path and child
  * file name
@@ -10,6 +11,36 @@
  *  - parent: reference to a char*, to store parent path
  *  - child: reference to a char*, to store child file name
  */
+
+extern pthread_mutex_t lockm;
+extern pthread_rwlock_t lockrw;
+extern char p[6];
+
+void closelocks(char *aux){
+	if(strcmp(p,"mutex")==0){
+		pthread_mutex_lock(&lockm);
+	}
+	else if(strcmp(p,"rwlock")== 0 && strcmp(aux,"wr")){
+		pthread_rwlock_wrlock(&lockrw);
+	}
+	else if(strcmp(p,"rwlock")== 0 && strcmp(aux,"rd")){
+		pthread_rwlock_rdlock(&lockrw);
+	}
+	else{
+	}
+}
+
+void openlocks(){
+	if(strcmp(p,"mutex")==0){
+		pthread_mutex_unlock(&lockm);
+	}
+	else if(strcmp(p,"rwlock")== 0){
+		pthread_rwlock_unlock(&lockrw);
+	}
+	else{
+	}
+}
+
 void split_parent_child_from_path(char * path, char ** parent, char ** child) {
 
 	int n_slashes = 0, last_slash_location = 0;
@@ -131,7 +162,6 @@ int create(char *name, type nodeType){
 		        name, parent_name);
 		return FAIL;
 	}
-
 	inode_get(parent_inumber, &pType, &pdata);
 
 	if(pType != T_DIRECTORY) {
@@ -159,7 +189,6 @@ int create(char *name, type nodeType){
 		       child_name, parent_name);
 		return FAIL;
 	}
-
 	return SUCCESS;
 }
 
@@ -180,7 +209,6 @@ int delete(char *name){
 
 	strcpy(name_copy, name);
 	split_parent_child_from_path(name_copy, &parent_name, &child_name);
-
 	parent_inumber = lookup(parent_name);
 
 	if (parent_inumber == FAIL) {
@@ -225,7 +253,6 @@ int delete(char *name){
 		       child_inumber, parent_name);
 		return FAIL;
 	}
-
 	return SUCCESS;
 }
 
@@ -243,25 +270,21 @@ int lookup(char *name) {
 	char delim[] = "/";
 
 	strcpy(full_path, name);
-
 	/* start at root node */
 	int current_inumber = FS_ROOT;
 
 	/* use for copy */
 	type nType;
 	union Data data;
-
 	/* get root inode data */
 	inode_get(current_inumber, &nType, &data);
 
 	char *path = strtok(full_path, delim);
-
 	/* search for all sub nodes */
 	while (path != NULL && (current_inumber = lookup_sub_node(path, data.dirEntries)) != FAIL) {
 		inode_get(current_inumber, &nType, &data);
 		path = strtok(NULL, delim);
 	}
-
 	return current_inumber;
 }
 
