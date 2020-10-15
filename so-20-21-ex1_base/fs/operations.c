@@ -18,13 +18,16 @@ extern char p[6];
 
 void closelocks(char *aux){
 	if(strcmp(p,"mutex")==0){
-		pthread_mutex_lock(&lockm);
+		if(pthread_mutex_lock(&lockm)!=0)
+			exit(EXIT_FAILURE);
 	}
 	else if(strcmp(p,"rwlock")== 0 && strcmp(aux,"wr")){
-		pthread_rwlock_wrlock(&lockrw);
+		if(pthread_rwlock_wrlock(&lockrw)!=0)
+			exit(EXIT_FAILURE);
 	}
 	else if(strcmp(p,"rwlock")== 0 && strcmp(aux,"rd")){
-		pthread_rwlock_rdlock(&lockrw);
+		if(pthread_rwlock_rdlock(&lockrw)!=0)
+			exit(EXIT_FAILURE);
 	}
 	else{
 	}
@@ -32,10 +35,12 @@ void closelocks(char *aux){
 
 void openlocks(){
 	if(strcmp(p,"mutex")==0){
-		pthread_mutex_unlock(&lockm);
+		if(pthread_mutex_unlock(&lockm)!=0)
+			exit(EXIT_FAILURE);
 	}
 	else if(strcmp(p,"rwlock")== 0){
-		pthread_rwlock_unlock(&lockrw);
+		if(pthread_rwlock_unlock(&lockrw)!=0)
+			exit(EXIT_FAILURE);
 	}
 	else{
 	}
@@ -270,24 +275,27 @@ int lookup(char *name) {
 	char delim[] = "/";
 
 	strcpy(full_path, name);
+
 	/* start at root node */
 	int current_inumber = FS_ROOT;
 
 	/* use for copy */
 	type nType;
 	union Data data;
+
 	/* get root inode data */
 	inode_get(current_inumber, &nType, &data);
 
 	char *path = strtok(full_path, delim);
+
 	/* search for all sub nodes */
 	while (path != NULL && (current_inumber = lookup_sub_node(path, data.dirEntries)) != FAIL) {
 		inode_get(current_inumber, &nType, &data);
 		path = strtok(NULL, delim);
 	}
+
 	return current_inumber;
 }
-
 
 /*
  * Prints tecnicofs tree.
