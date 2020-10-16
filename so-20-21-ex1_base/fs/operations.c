@@ -4,6 +4,59 @@
 #include <string.h>
 #include <pthread.h>
 
+/* Global variables used in closelocks and openlocks */
+extern pthread_mutex_t lockm; 
+extern pthread_rwlock_t lockrw;
+extern char p[6];
+
+/* Closes locks according the sync strategy 
+ * Input: 
+ *  - aux: describes the critical section as a read or write critical section
+ */
+
+void closelocks(char *aux){
+	if(strcmp(p,"mutex")==0){
+		if(pthread_mutex_lock(&lockm)!=0){
+			printf("Error: Failed to close lock.\n");
+			exit(EXIT_FAILURE);
+		}
+			
+	}
+	else if(strcmp(p,"rwlock")== 0 && strcmp(aux,"wr")){
+		if(pthread_rwlock_wrlock(&lockrw)!=0){
+			printf("Error: Failed to close lock.\n");
+			exit(EXIT_FAILURE);
+		}
+	}
+	else if(strcmp(p,"rwlock")== 0 && strcmp(aux,"rd")){
+		if(pthread_rwlock_rdlock(&lockrw)!=0){
+			printf("Error: Failed to close lock.\n");
+			exit(EXIT_FAILURE);
+		}
+	}
+	else{
+	}
+}
+
+/* Opens locks according the sync strategy 
+*/
+void openlocks(){
+	if(strcmp(p,"mutex")==0){
+		if(pthread_mutex_unlock(&lockm)!=0){
+			printf("Error: Failed to open lock.\n");
+			exit(EXIT_FAILURE);
+		}
+	}
+	else if(strcmp(p,"rwlock")== 0){
+		if(pthread_rwlock_unlock(&lockrw)!=0){
+			printf("Error: Failed to open lock.\n");
+			exit(EXIT_FAILURE);
+		}
+	}
+	else{
+	}
+}
+
 /* Given a path, fills pointers with strings for the parent path and child
  * file name
  * Input:
@@ -11,41 +64,6 @@
  *  - parent: reference to a char*, to store parent path
  *  - child: reference to a char*, to store child file name
  */
-
-extern pthread_mutex_t lockm;
-extern pthread_rwlock_t lockrw;
-extern char p[6];
-
-void closelocks(char *aux){
-	if(strcmp(p,"mutex")==0){
-		if(pthread_mutex_lock(&lockm)!=0)
-			exit(EXIT_FAILURE);
-	}
-	else if(strcmp(p,"rwlock")== 0 && strcmp(aux,"wr")){
-		if(pthread_rwlock_wrlock(&lockrw)!=0)
-			exit(EXIT_FAILURE);
-	}
-	else if(strcmp(p,"rwlock")== 0 && strcmp(aux,"rd")){
-		if(pthread_rwlock_rdlock(&lockrw)!=0)
-			exit(EXIT_FAILURE);
-	}
-	else{
-	}
-}
-
-void openlocks(){
-	if(strcmp(p,"mutex")==0){
-		if(pthread_mutex_unlock(&lockm)!=0)
-			exit(EXIT_FAILURE);
-	}
-	else if(strcmp(p,"rwlock")== 0){
-		if(pthread_rwlock_unlock(&lockrw)!=0)
-			exit(EXIT_FAILURE);
-	}
-	else{
-	}
-}
-
 void split_parent_child_from_path(char * path, char ** parent, char ** child) {
 
 	int n_slashes = 0, last_slash_location = 0;
