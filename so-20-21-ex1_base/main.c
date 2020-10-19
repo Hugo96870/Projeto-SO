@@ -12,9 +12,6 @@
 #define MAX_INPUT_SIZE 100
 
 pthread_mutex_t lockmCom;
-pthread_mutex_t lockm;
-pthread_rwlock_t lockrw;
-char p[6];
 
 struct timespec start, finish;
 double timeSpent;
@@ -122,15 +119,11 @@ void* applyCommands(){
                 switch (type) {
                     case 'f':
                         printf("Create file: %s\n", name);
-                        closelocks("wr");
                         create(name, T_FILE);
-                        openlocks();
                         break;
                     case 'd':
                         printf("Create directory: %s\n", name);
-                        closelocks("wr");
                         create(name, T_DIRECTORY);
-                        openlocks();
                         break;
                     default:
                         fprintf(stderr, "Error: invalid node type\n");
@@ -138,9 +131,7 @@ void* applyCommands(){
                 }
                 break;
             case 'l':
-                closelocks("rd");
                 searchResult = lookup(name);
-                openlocks();
                 if (searchResult >= 0){
                     printf("Search: %s found\n", name);
                 }
@@ -150,9 +141,7 @@ void* applyCommands(){
                 break;
             case 'd':
                 printf("Delete: %s\n", name);
-                closelocks("wr");
                 delete(name);
-                openlocks();
                 break;
             default: { /* error */
                 fprintf(stderr, "Error: command to apply\n");
@@ -198,25 +187,7 @@ int main(int argc,char* argv[]) {
     FILE *inputf;
     FILE *outputf;
 
-    /* verify the sync strategy */
-    if(strcmp(argv[4],"mutex")==0){
-        pthread_mutex_init(&lockm,NULL);
-        pthread_mutex_init(&lockmCom,NULL);
-        strcpy(p,argv[4]);
-    }
-    else if(strcmp(argv[4],"rwlock")==0){
-        pthread_rwlock_init(&lockrw,NULL);
-        pthread_mutex_init(&lockmCom,NULL);
-        strcpy(p,argv[4]);
-    }
-    else if(strcmp(argv[4],"nosync")==0 && atoi(argv[3]) == 1){
-        pthread_mutex_init(&lockmCom,NULL);
-        strcpy(p,argv[4]);
-    }
-    else if(strcmp(argv[4], "nosync") == 0 && atoi(argv[3]) != 1){
-        printf("Error: Invalid input.\n");
-        exit(EXIT_FAILURE);
-    }
+    pthread_mutex_init(&lockmCom,NULL);
 
     /* init filesystem */
     init_fs();
@@ -228,22 +199,26 @@ int main(int argc,char* argv[]) {
     /* process input and print tree */
     processInput(inputf);
     fclose(inputf);
-    clock_gettime(CLOCK_REALTIME, &start);
+    if(clock_gettime(CLOCK_REALTIME, &start)!=0){
+        printf("Error: cant open clock\n");
+        exit(EXIT_FAILURE);
+    }
     startThreads(atoi(argv[3]));
     if ((outputf = fopen(argv[2],"w")) == NULL ){
         printf("Error: Cannot open file.\n");
         exit(EXIT_FAILURE);
     }
-    print_tecnicofs_tree(outputf);
-    fclose(outputf);
-    clock_gettime(CLOCK_REALTIME, &finish);
+    if(clock_gettime(CLOCK_REALTIME, &finish)!=0){
+        printf("Error: Cant close clock\n");
+        exit(EXIT_FAILURE);
+    }
     timeSpent = (finish.tv_sec - start.tv_sec);
     timeSpent += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
     printf("TecnicoFS completed in %.4f seconds.\n", timeSpent);
+    print_tecnicofs_tree(outputf);
+    fclose(outputf);
     /* release allocated memory */
-    pthread_mutex_destroy(&lockm);
     pthread_mutex_destroy(&lockmCom);
-    pthread_rwlock_destroy(&lockrw);
     destroy_fs();
     exit(EXIT_SUCCESS);
 }

@@ -30,8 +30,8 @@ typedef struct dirEntry {
  * Data is either text (file) or entries (DirEntry)
  */
 union Data {
-	char *fileContents; /* for files */
-	DirEntry *dirEntries; /* for directories */
+	char fileContents; /* for files */
+	DirEntry dirEntries; /* for directories */
 };
 
 /*
@@ -40,6 +40,7 @@ union Data {
 typedef struct inode_t {    
 	type nodeType;
 	union Data data;
+	pthread_rwlock_t lock;
     /* more i-node attributes will be added in future exercises */
 } inode_t;
 

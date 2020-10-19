@@ -15,34 +15,15 @@ extern char p[6];
  */
 
 void closelocks(char *aux){
-	if(strcmp(p,"rwlock")== 0 && strcmp(aux,"wr")){
+	if(strcmp(aux,"wr")){
 		if(pthread_rwlock_wrlock(&lockrw)!=0){
 			printf("Error: Failed to close lock.\n");
 			exit(EXIT_FAILURE);
 		}
 	}
-	else if(strcmp(p,"rwlock")== 0 && strcmp(aux,"rd")){
+	else if(strcmp(aux,"rd")){
 		if(pthread_rwlock_rdlock(&lockrw)!=0){
 			printf("Error: Failed to close lock.\n");
-			exit(EXIT_FAILURE);
-		}
-	}
-	else{
-	}
-}
-
-/* Opens locks according the sync strategy 
-*/
-void openlocks(){
-	if(strcmp(p,"mutex")==0){
-		if(pthread_mutex_unlock(&lockm)!=0){
-			printf("Error: Failed to open lock.\n");
-			exit(EXIT_FAILURE);
-		}
-	}
-	else if(strcmp(p,"rwlock")== 0){
-		if(pthread_rwlock_unlock(&lockrw)!=0){
-			printf("Error: Failed to open lock.\n");
 			exit(EXIT_FAILURE);
 		}
 	}
@@ -57,7 +38,7 @@ void openlocks(){
  *  - parent: reference to a char*, to store parent path
  *  - child: reference to a char*, to store child file name
  */
-void split_parent_child_from_path(char * path, char ** parent, char ** child) {
+void split_parent_child_from_path(char * path, char * parent, char * child) {
 
 	int n_slashes = 0, last_slash_location = 0;
 	int len = strlen(path);
@@ -172,10 +153,12 @@ int create(char *name, type nodeType){
 	split_parent_child_from_path(name_copy, &parent_name, &child_name);
 
 	parent_inumber = lookup(parent_name);
-
+	//fechar
+	
 	if (parent_inumber == FAIL) {
 		printf("failed to create %s, invalid parent dir %s\n",
 		        name, parent_name);
+		//abrir
 		return FAIL;
 	}
 	inode_get(parent_inumber, &pType, &pdata);
@@ -183,12 +166,14 @@ int create(char *name, type nodeType){
 	if(pType != T_DIRECTORY) {
 		printf("failed to create %s, parent %s is not a dir\n",
 		        name, parent_name);
+		//abrir
 		return FAIL;
 	}
 
 	if (lookup_sub_node(child_name, pdata.dirEntries) != FAIL) {
 		printf("failed to create %s, already exists in dir %s\n",
 		       child_name, parent_name);
+		//abrir
 		return FAIL;
 	}
 
@@ -197,15 +182,18 @@ int create(char *name, type nodeType){
 	if (child_inumber == FAIL) {
 		printf("failed to create %s in  %s, couldn't allocate inode\n",
 		        child_name, parent_name);
+		//abrir
 		return FAIL;
 	}
 
 	if (dir_add_entry(parent_inumber, child_inumber, child_name) == FAIL) {
 		printf("could not add entry %s in dir %s\n",
 		       child_name, parent_name);
+		//abrir
 		return FAIL;
 	}
 	return SUCCESS;
+	//abrir
 }
 
 
@@ -295,16 +283,18 @@ int lookup(char *name) {
 	union Data data;
 
 	/* get root inode data */
+	// Fechar para rwlock para ler
 	inode_get(current_inumber, &nType, &data);
-
+	//abrir lock
 	char *path = strtok(full_path, delim);
 
 	/* search for all sub nodes */
+	//fechar para ler 
 	while (path != NULL && (current_inumber = lookup_sub_node(path, data.dirEntries)) != FAIL) {
 		inode_get(current_inumber, &nType, &data);
 		path = strtok(NULL, delim);
 	}
-
+	//abrir lock
 	return current_inumber;
 }
 
