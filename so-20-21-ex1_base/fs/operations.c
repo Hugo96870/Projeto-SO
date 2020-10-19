@@ -15,14 +15,7 @@ extern char p[6];
  */
 
 void closelocks(char *aux){
-	if(strcmp(p,"mutex")==0){
-		if(pthread_mutex_lock(&lockm)!=0){
-			printf("Error: Failed to close lock.\n");
-			exit(EXIT_FAILURE);
-		}
-			
-	}
-	else if(strcmp(p,"rwlock")== 0 && strcmp(aux,"wr")){
+	if(strcmp(p,"rwlock")== 0 && strcmp(aux,"wr")){
 		if(pthread_rwlock_wrlock(&lockrw)!=0){
 			printf("Error: Failed to close lock.\n");
 			exit(EXIT_FAILURE);
