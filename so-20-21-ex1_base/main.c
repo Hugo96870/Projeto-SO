@@ -150,7 +150,7 @@ void* applyCommands(){
                 break;
             case 'd':
                 printf("Delete: %s\n", name);
-                closelocks("rw");
+                closelocks("wr");
                 delete(name);
                 openlocks();
                 break;
