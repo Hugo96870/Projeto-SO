@@ -11,6 +11,7 @@
 #define MAX_COMMANDS 150000
 #define MAX_INPUT_SIZE 100
 
+pthread_mutex_t lockm;
 pthread_mutex_t lockmCom;
 
 struct timespec start, finish;
@@ -89,11 +90,15 @@ void processInput(FILE *inputf){
 }
 
 void* applyCommands(){
+    pthread_rwlock_t *vetorlocks=malloc(sizeof(pthread_rwlock_t)*50);
+    int counter;
+
     if (pthread_mutex_lock(&lockmCom) != 0){
         printf("Error: Failed to close lock.\n");
 		exit(EXIT_FAILURE);
     }
     while(numberCommands>0){
+        counter=0;
         const char* command = removeCommand();
         if (pthread_mutex_unlock(&lockmCom) != 0){
             printf("Error: Failed to open lock.\n");
@@ -119,11 +124,11 @@ void* applyCommands(){
                 switch (type) {
                     case 'f':
                         printf("Create file: %s\n", name);
-                        create(name, T_FILE);
+                        create(name, T_FILE,vetorlocks,counter);
                         break;
                     case 'd':
                         printf("Create directory: %s\n", name);
-                        create(name, T_DIRECTORY);
+                        create(name, T_DIRECTORY,vetorlocks,counter);
                         break;
                     default:
                         fprintf(stderr, "Error: invalid node type\n");
@@ -131,7 +136,7 @@ void* applyCommands(){
                 }
                 break;
             case 'l':
-                searchResult = lookup(name);
+                searchResult = lookup(name,1,vetorlocks,counter);
                 if (searchResult >= 0){
                     printf("Search: %s found\n", name);
                 }
@@ -141,7 +146,7 @@ void* applyCommands(){
                 break;
             case 'd':
                 printf("Delete: %s\n", name);
-                delete(name);
+                delete(name,vetorlocks,counter);
                 break;
             default: { /* error */
                 fprintf(stderr, "Error: command to apply\n");
@@ -188,7 +193,7 @@ int main(int argc,char* argv[]) {
     FILE *outputf;
 
     pthread_mutex_init(&lockmCom,NULL);
-
+    pthread_mutex_init(&lockm,NULL);
     /* init filesystem */
     init_fs();
     if ((inputf = fopen(argv[1],"r")) == NULL){
@@ -218,6 +223,7 @@ int main(int argc,char* argv[]) {
     print_tecnicofs_tree(outputf);
     fclose(outputf);
     /* release allocated memory */
+    pthread_mutex_destroy(&lockm);
     pthread_mutex_destroy(&lockmCom);
     destroy_fs();
     exit(EXIT_SUCCESS);

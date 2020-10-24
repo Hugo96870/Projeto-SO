@@ -3,10 +3,12 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include "state.h"
+#include <pthread.h>
 #include "../tecnicofs-api-constants.h"
 
 inode_t inode_table[INODE_TABLE_SIZE];
 
+extern pthread_mutex_t lockm;
 
 /*
  * Sleeps for synchronization testing.
@@ -55,7 +57,8 @@ void inode_table_destroy() {
 int inode_create(type nType) {
     /* Used for testing synchronization speedup */
     insert_delay(DELAY);
-
+    
+    pthread_mutex_lock(&lockm);
     for (int inumber = 0; inumber < INODE_TABLE_SIZE; inumber++) {
         if (inode_table[inumber].nodeType == T_NONE) {
             inode_table[inumber].nodeType = nType;
@@ -72,9 +75,11 @@ int inode_create(type nType) {
             else {
                 inode_table[inumber].data.fileContents = NULL;
             }
+            pthread_mutex_unlock(&lockm);
             return inumber;
         }
     }
+    pthread_mutex_unlock(&lockm);
     return FAIL;
 }
 
@@ -118,9 +123,9 @@ int inode_get(int inumber, type *nType, union Data *data) {
         return FAIL;
     }
 
-    if (nType)
+    if (nType){
         *nType = inode_table[inumber].nodeType;
-
+    }
     if (data)
         *data = inode_table[inumber].data;
 

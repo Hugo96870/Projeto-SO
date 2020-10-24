@@ -30,8 +30,8 @@ typedef struct dirEntry {
  * Data is either text (file) or entries (DirEntry)
  */
 union Data {
-	char fileContents; /* for files */
-	DirEntry dirEntries; /* for directories */
+	char *fileContents; /* for files */
+	DirEntry *dirEntries; /* for directories */
 };
 
 /*
