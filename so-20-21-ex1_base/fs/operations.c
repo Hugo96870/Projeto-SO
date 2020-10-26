@@ -11,27 +11,26 @@ extern inode_t inode_table[INODE_TABLE_SIZE];
  *  - aux: describes the critical section as a read or write critical section
  */
 
-void closelocks(char *aux, pthread_rwlock_t lock, pthread_rwlock_t vetorlocks[], int counter){
-	if(strcmp(aux,"wr")){
+void closelocks(int state, pthread_rwlock_t lock, int vetorlocks[], int inumber, int counter){
+	if(state==1){
 		if(pthread_rwlock_wrlock(&lock)!=0){
 			printf("Error: Failed to close lock.\n");
 			exit(EXIT_FAILURE);
 		}
 	}
-	else if(strcmp(aux,"rd")){
+	else if(state==0){
 		if(pthread_rwlock_rdlock(&lock)!=0){
 			printf("Error: Failed to close lock.\n");
 			exit(EXIT_FAILURE);
 		}
 	}
-	vetorlocks[counter]=lock;
-	counter++;
+	vetorlocks[counter++]=inumber;
 }
 
-void openlocks(pthread_rwlock_t vetorlocks[], int counter){
+void openlocks(int vetorlocks[], int counter){
 	int j=0;
 	while(j<counter){
-		if(pthread_rwlock_unlock(&vetorlocks[j])!=0){
+		if(pthread_rwlock_unlock(&inode_table[vetorlocks[j]].lock)!=0){
 			printf("Error: Could not open lock\n");
 			exit(EXIT_FAILURE);
 		}
@@ -119,6 +118,16 @@ int is_dir_empty(DirEntry *dirEntries) {
 	return SUCCESS;
 }
 
+/*
+ * Looks for node in directory entry from name.
+ * Input:
+ *  - name: path of node
+ *  - entries: entries of directory
+ * Returns:
+ *  - inumber: found node's inumber
+ *  - FAIL: if not found
+ */
+
 int lookup_sub_node(char *name, DirEntry *entries) {
 	if (entries == NULL) {
 		return FAIL;
@@ -133,25 +142,13 @@ int lookup_sub_node(char *name, DirEntry *entries) {
 }
 
 /*
- * Looks for node in directory entry from name.
- * Input:
- *  - name: path of node
- *  - entries: entries of directory
- * Returns:
- *  - inumber: found node's inumber
- *  - FAIL: if not found
- */
-
-
-
-/*
  * Creates a new node given a path.
  * Input:
  *  - name: path of node
  *  - nodeType: type of node
  * Returns: SUCCESS or FAIL
  */
-int create(char *name, type nodeType, pthread_rwlock_t vetorlocks[], int counter){
+int create(char *name, type nodeType, int vetorlocks[], int counter){
 
 	int parent_inumber, child_inumber;
 	char *parent_name, *child_name, name_copy[MAX_FILE_NAME];
@@ -190,7 +187,7 @@ int create(char *name, type nodeType, pthread_rwlock_t vetorlocks[], int counter
 	}
 	/* create node and add entry to folder that contains new node */
 	child_inumber = inode_create(nodeType);
-	closelocks("wr",inode_table[child_inumber].lock,vetorlocks,counter);
+	closelocks(1, inode_table[child_inumber].lock, vetorlocks, child_inumber, counter);
 
 	if (child_inumber == FAIL) {
 		printf("failed to create %s in  %s, couldn't allocate inode\n",
@@ -216,7 +213,7 @@ int create(char *name, type nodeType, pthread_rwlock_t vetorlocks[], int counter
  *  - name: path of node
  * Returns: SUCCESS or FAIL
  */
-int delete(char *name, pthread_rwlock_t vetorlocks[], int counter){
+int delete(char *name, int vetorlocks[], int counter){
 	
 	int parent_inumber, child_inumber;
 	char *parent_name, *child_name, name_copy[MAX_FILE_NAME];
@@ -252,7 +249,7 @@ int delete(char *name, pthread_rwlock_t vetorlocks[], int counter){
 		openlocks(vetorlocks,counter);
 		return FAIL;
 	}
-	closelocks("wr",inode_table[child_inumber].lock,vetorlocks,counter);
+	closelocks(1, inode_table[child_inumber].lock, vetorlocks, child_inumber, counter);
 
 	inode_get(child_inumber, &cType, &cdata);
 
@@ -292,9 +289,10 @@ int delete(char *name, pthread_rwlock_t vetorlocks[], int counter){
  *     FAIL: otherwise
  */
 
-int lookup(char *name, int nr, pthread_rwlock_t vetorlocks[], int counter) {
+int lookup(char *name, int nr, int vetorlocks[], int counter) {
 	char full_path[MAX_FILE_NAME];
 	char delim[] = "/";
+	char *saveptr;
 
 	strcpy(full_path, name);
 
@@ -308,21 +306,25 @@ int lookup(char *name, int nr, pthread_rwlock_t vetorlocks[], int counter) {
 	/* get root inode data */
 	inode_get(current_inumber, &nType, &data);
 
-	char *path = strtok(full_path, delim);
+	char *path = strtok_r(full_path, delim, &saveptr);
 
 	/* search for all sub nodes */
-	closelocks("rd",inode_table[current_inumber].lock,vetorlocks,counter);
+	if(path==NULL)
+		closelocks(1, inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
+	else
+		closelocks(0, inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
+
 	while (path != NULL && (current_inumber = lookup_sub_node(path, data.dirEntries)) != FAIL) {
 		inode_get(current_inumber, &nType, &data);
-		path = strtok(NULL, delim);
+		path = strtok_r(NULL, delim, &saveptr);
 		if (path!=NULL){
-			closelocks("rd",inode_table[current_inumber].lock, vetorlocks, counter);
+			closelocks(0,inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
 		}
 		else if(path==NULL){
-			if(nr==0 || nr==2)
-				closelocks("wr",inode_table[current_inumber].lock, vetorlocks, counter);
-			else if(nr==1)
-				closelocks("rd",inode_table[current_inumber].lock, vetorlocks, counter);
+			if(nr==1)
+				closelocks(0,inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
+			else
+				closelocks(1,inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
 		}
 	}
 	if (nr==1)

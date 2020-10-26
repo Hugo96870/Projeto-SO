@@ -90,7 +90,7 @@ void processInput(FILE *inputf){
 }
 
 void* applyCommands(){
-    pthread_rwlock_t *vetorlocks=malloc(sizeof(pthread_rwlock_t)*50);
+    int *vetorlocks=malloc(sizeof(int)*50);
     int counter;
 
     if (pthread_mutex_lock(&lockmCom) != 0){
