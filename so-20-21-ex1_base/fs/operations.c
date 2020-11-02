@@ -4,6 +4,12 @@
 #include <string.h>
 #include <pthread.h>
 
+#define WRITE 1
+#define READ 0
+#define LER 1
+#define ESCREVER 2
+#define APAGAR 2
+
 extern inode_t inode_table[INODE_TABLE_SIZE];
 
 /* Closes locks according the sync strategy 
@@ -187,7 +193,7 @@ int create(char *name, type nodeType, int vetorlocks[], int counter){
 	}
 	/* create node and add entry to folder that contains new node */
 	child_inumber = inode_create(nodeType);
-	closelocks(1, inode_table[child_inumber].lock, vetorlocks, child_inumber, counter);
+	closelocks(WRITE, inode_table[child_inumber].lock, vetorlocks, child_inumber, counter);
 
 	if (child_inumber == FAIL) {
 		printf("failed to create %s in  %s, couldn't allocate inode\n",
@@ -249,7 +255,9 @@ int delete(char *name, int vetorlocks[], int counter){
 		openlocks(vetorlocks,counter);
 		return FAIL;
 	}
-	closelocks(1, inode_table[child_inumber].lock, vetorlocks, child_inumber, counter);
+
+	closelocks(WRITE, inode_table[child_inumber].lock, vetorlocks, child_inumber, counter);
+	printf("%d\n",child_inumber);
 
 	inode_get(child_inumber, &cType, &cdata);
 
@@ -289,7 +297,7 @@ int delete(char *name, int vetorlocks[], int counter){
  *     FAIL: otherwise
  */
 
-int lookup(char *name, int nr, int vetorlocks[], int counter) {
+int lookup(char *name, int tipo, int vetorlocks[], int counter) {
 	char full_path[MAX_FILE_NAME];
 	char delim[] = "/";
 	char *saveptr;
@@ -310,24 +318,24 @@ int lookup(char *name, int nr, int vetorlocks[], int counter) {
 
 	/* search for all sub nodes */
 	if(path==NULL)
-		closelocks(1, inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
+		closelocks(WRITE, inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
 	else
-		closelocks(0, inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
+		closelocks(READ, inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
 
 	while (path != NULL && (current_inumber = lookup_sub_node(path, data.dirEntries)) != FAIL) {
 		inode_get(current_inumber, &nType, &data);
 		path = strtok_r(NULL, delim, &saveptr);
 		if (path!=NULL){
-			closelocks(0,inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
+			closelocks(READ,inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
 		}
 		else if(path==NULL){
-			if(nr==1)
-				closelocks(0,inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
+			if(tipo==LER)
+				closelocks(READ,inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
 			else
-				closelocks(1,inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
+				closelocks(WRITE,inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
 		}
 	}
-	if (nr==1)
+	if (tipo==LER)
 		openlocks(vetorlocks, counter);
 	return current_inumber;
 }

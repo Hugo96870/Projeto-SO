@@ -194,6 +194,13 @@ int main(int argc,char* argv[]) {
 
     pthread_mutex_init(&lockmCom,NULL);
     pthread_mutex_init(&lockm,NULL);
+
+    /* Verify the input */
+    if(argc != 4 || atoi(argv[3]) < 1){
+        printf("Error: Invalid input");
+        exit(EXIT_FAILURE);
+    }
+
     /* init filesystem */
     init_fs();
     if ((inputf = fopen(argv[1],"r")) == NULL){
