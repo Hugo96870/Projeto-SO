@@ -3,12 +3,14 @@
 #include <stdio.h>
 #include <string.h>
 #include <pthread.h>
+#include <unistd.h>
 
 #define WRITE 1
 #define READ 0
 #define LER 1
 #define ESCREVER 2
 #define APAGAR 2
+#define CINQUENTA 50
 
 extern inode_t inode_table[INODE_TABLE_SIZE];
 
@@ -17,25 +19,33 @@ extern inode_t inode_table[INODE_TABLE_SIZE];
  *  - aux: describes the critical section as a read or write critical section
  */
 
-void closelocks(int state, pthread_rwlock_t lock, int vetorlocks[], int inumber, int counter){
+void closelocks(int state, pthread_rwlock_t *lock, int vetorlocks[], int inumber, int counter){
 	if(state==1){
-		if(pthread_rwlock_wrlock(&lock)!=0){
-			printf("Error: Failed to close lock.\n");
+		int err = pthread_rwlock_wrlock(lock);
+		printf("vou fechar escrever%d\n",inumber);
+		if(err!=0){
+			printf("Error: Failed to close lock. %d \n",err);
 			exit(EXIT_FAILURE);
 		}
+		counter++;
 	}
 	else if(state==0){
-		if(pthread_rwlock_rdlock(&lock)!=0){
-			printf("Error: Failed to close lock.\n");
+		int err = pthread_rwlock_rdlock(lock);
+		printf("vou fechar ler%d\n",inumber);
+		if(err!=0){
+			printf("Error: Failed to close lock. %d \n",err);
 			exit(EXIT_FAILURE);
 		}
+		counter++;
 	}
-	vetorlocks[counter++]=inumber;
+	vetorlocks[counter]=inumber;
 }
 
 void openlocks(int vetorlocks[], int counter){
 	int j=0;
-	while(j<counter){
+	while(j<=counter){
+		printf("%d\n",counter);
+		printf("vou abrir %d\n",vetorlocks[j]);
 		if(pthread_rwlock_unlock(&inode_table[vetorlocks[j]].lock)!=0){
 			printf("Error: Could not open lock\n");
 			exit(EXIT_FAILURE);
@@ -193,7 +203,6 @@ int create(char *name, type nodeType, int vetorlocks[], int counter){
 	}
 	/* create node and add entry to folder that contains new node */
 	child_inumber = inode_create(nodeType);
-	closelocks(WRITE, inode_table[child_inumber].lock, vetorlocks, child_inumber, counter);
 
 	if (child_inumber == FAIL) {
 		printf("failed to create %s in  %s, couldn't allocate inode\n",
@@ -247,6 +256,7 @@ int delete(char *name, int vetorlocks[], int counter){
 		return FAIL;
 	}
 
+
 	child_inumber = lookup_sub_node(child_name, pdata.dirEntries);
 
 	if (child_inumber == FAIL) {
@@ -256,7 +266,7 @@ int delete(char *name, int vetorlocks[], int counter){
 		return FAIL;
 	}
 
-	closelocks(WRITE, inode_table[child_inumber].lock, vetorlocks, child_inumber, counter);
+	closelocks(WRITE, &inode_table[child_inumber].lock, vetorlocks, child_inumber, counter);
 	printf("%d\n",child_inumber);
 
 	inode_get(child_inumber, &cType, &cdata);
@@ -298,6 +308,7 @@ int delete(char *name, int vetorlocks[], int counter){
  */
 
 int lookup(char *name, int tipo, int vetorlocks[], int counter) {
+
 	char full_path[MAX_FILE_NAME];
 	char delim[] = "/";
 	char *saveptr;
@@ -311,29 +322,30 @@ int lookup(char *name, int tipo, int vetorlocks[], int counter) {
 	type nType;
 	union Data data;
 
+	char *path = strtok_r(full_path, delim, &saveptr);
+
+	if(path==NULL)
+		closelocks(WRITE, &inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
+	else
+		closelocks(READ, &inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
+
 	/* get root inode data */
 	inode_get(current_inumber, &nType, &data);
 
-	char *path = strtok_r(full_path, delim, &saveptr);
-
 	/* search for all sub nodes */
-	if(path==NULL)
-		closelocks(WRITE, inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
-	else
-		closelocks(READ, inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
 
 	while (path != NULL && (current_inumber = lookup_sub_node(path, data.dirEntries)) != FAIL) {
-		inode_get(current_inumber, &nType, &data);
 		path = strtok_r(NULL, delim, &saveptr);
 		if (path!=NULL){
-			closelocks(READ,inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
+			closelocks(READ,&inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
 		}
 		else if(path==NULL){
 			if(tipo==LER)
-				closelocks(READ,inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
+				closelocks(READ,&inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
 			else
-				closelocks(WRITE,inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
+				closelocks(WRITE,&inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
 		}
+		inode_get(current_inumber, &nType, &data);
 	}
 	if (tipo==LER)
 		openlocks(vetorlocks, counter);

@@ -3,8 +3,6 @@
 #include "state.h"
 #include <pthread.h> 
 
-void closelocks(int state, pthread_rwlock_t lock, int vetorlocks[], int  inumber, int counter);
-void openlocks();
 void init_fs();
 void destroy_fs();
 int is_dir_empty(DirEntry *dirEntries);
