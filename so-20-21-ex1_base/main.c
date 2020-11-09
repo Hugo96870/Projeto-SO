@@ -91,14 +91,13 @@ void processInput(FILE *inputf){
 
 void* applyCommands(){
     int *vetorlocks=malloc(sizeof(int)*50);
-    int counter;
+    int *counter=malloc(sizeof(int));
 
     if (pthread_mutex_lock(&lockmCom) != 0){
         printf("Error: Failed to close lock.\n");
 		exit(EXIT_FAILURE);
     }
     while(numberCommands>0){
-        counter=0;
         const char* command = removeCommand();
         if (pthread_mutex_unlock(&lockmCom) != 0){
             printf("Error: Failed to open lock.\n");
@@ -124,11 +123,11 @@ void* applyCommands(){
                 switch (type) {
                     case 'f':
                         printf("Create file: %s\n", name);
-                        create(name, T_FILE,vetorlocks,counter);
+                        create(name, T_FILE);
                         break;
                     case 'd':
                         printf("Create directory: %s\n", name);
-                        create(name, T_DIRECTORY,vetorlocks,counter);
+                        create(name, T_DIRECTORY);
                         break;
                     default:
                         fprintf(stderr, "Error: invalid node type\n");
@@ -136,6 +135,7 @@ void* applyCommands(){
                 }
                 break;
             case 'l':
+            *counter=0;
                 searchResult = lookup(name,1,vetorlocks,counter);
                 if (searchResult >= 0){
                     printf("Search: %s found\n", name);
@@ -146,7 +146,7 @@ void* applyCommands(){
                 break;
             case 'd':
                 printf("Delete: %s\n", name);
-                delete(name,vetorlocks,counter);
+                delete(name);
                 break;
             default: { /* error */
                 fprintf(stderr, "Error: command to apply\n");

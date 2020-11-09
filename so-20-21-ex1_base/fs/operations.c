@@ -19,33 +19,32 @@ extern inode_t inode_table[INODE_TABLE_SIZE];
  *  - aux: describes the critical section as a read or write critical section
  */
 
-void closelocks(int state, pthread_rwlock_t *lock, int vetorlocks[], int inumber, int counter){
+void closelocks(int state, pthread_rwlock_t *lock, int vetorlocks[], int inumber, int *counter){
 	if(state==1){
 		int err = pthread_rwlock_wrlock(lock);
-		printf("vou fechar escrever%d\n",inumber);
+		/*printf("vou fechar escrever%d\n",inumber);*/
 		if(err!=0){
 			printf("Error: Failed to close lock. %d \n",err);
 			exit(EXIT_FAILURE);
 		}
-		counter++;
 	}
 	else if(state==0){
 		int err = pthread_rwlock_rdlock(lock);
-		printf("vou fechar ler%d\n",inumber);
+		/*printf("vou fechar ler%d\n",inumber);*/
 		if(err!=0){
 			printf("Error: Failed to close lock. %d \n",err);
 			exit(EXIT_FAILURE);
 		}
-		counter++;
 	}
-	vetorlocks[counter]=inumber;
+	vetorlocks[*counter] = inumber;
+	*counter+=1;
 }
 
-void openlocks(int vetorlocks[], int counter){
+void openlocks(int vetorlocks[], int *counter){
 	int j=0;
-	while(j<=counter){
-		printf("%d\n",counter);
-		printf("vou abrir %d\n",vetorlocks[j]);
+	while(j<*counter){
+		/*printf("%d\n",*counter);*/
+		/*printf("vou abrir %d\n",vetorlocks[j]);*/
 		if(pthread_rwlock_unlock(&inode_table[vetorlocks[j]].lock)!=0){
 			printf("Error: Could not open lock\n");
 			exit(EXIT_FAILURE);
@@ -164,8 +163,11 @@ int lookup_sub_node(char *name, DirEntry *entries) {
  *  - nodeType: type of node
  * Returns: SUCCESS or FAIL
  */
-int create(char *name, type nodeType, int vetorlocks[], int counter){
+int create(char *name, type nodeType){
 
+	int *vetorlocks=malloc(sizeof(int)*50);
+    int *counter=malloc(sizeof(int));
+	*counter=0;
 	int parent_inumber, child_inumber;
 	char *parent_name, *child_name, name_copy[MAX_FILE_NAME];
 
@@ -228,8 +230,11 @@ int create(char *name, type nodeType, int vetorlocks[], int counter){
  *  - name: path of node
  * Returns: SUCCESS or FAIL
  */
-int delete(char *name, int vetorlocks[], int counter){
+int delete(char *name){
 	
+	int *vetorlocks=malloc(sizeof(int)*50);
+    int *counter=malloc(sizeof(int));
+	*counter=0;
 	int parent_inumber, child_inumber;
 	char *parent_name, *child_name, name_copy[MAX_FILE_NAME];
 	/* use for copy */
@@ -267,7 +272,6 @@ int delete(char *name, int vetorlocks[], int counter){
 	}
 
 	closelocks(WRITE, &inode_table[child_inumber].lock, vetorlocks, child_inumber, counter);
-	printf("%d\n",child_inumber);
 
 	inode_get(child_inumber, &cType, &cdata);
 
@@ -307,7 +311,7 @@ int delete(char *name, int vetorlocks[], int counter){
  *     FAIL: otherwise
  */
 
-int lookup(char *name, int tipo, int vetorlocks[], int counter) {
+int lookup(char *name, int tipo, int vetorlocks[], int *counter) {
 
 	char full_path[MAX_FILE_NAME];
 	char delim[] = "/";
