@@ -12,7 +12,7 @@
 #define MAX_INPUT_SIZE 100
 
 pthread_mutex_t lockm;
-pthread_mutex_t lockmCom;
+pthread_mutex_t state;
 pthread_mutex_t lockVect;
 pthread_cond_t write;
 pthread_cond_t read;
@@ -59,31 +59,16 @@ void* processInput(void* arg){
             case 'c':
                 if(numTokens != 3)
                     errorParse();
-                strcpy(inputCommands[writeptr], line);
-                writeptr++;
-                if(writeptr==MAX_COMMANDS)
-                    writeptr=0;
-                count++;  
                 break;
             
             case 'l':
                 if(numTokens != 2)
                     errorParse();
-                strcpy(inputCommands[writeptr], line);
-                writeptr++;
-                if(writeptr==MAX_COMMANDS)
-                    writeptr=0;
-                count++;  
                 break;
             
             case 'd':
                 if(numTokens != 2)
-                    errorParse();
-                strcpy(inputCommands[writeptr], line);
-                writeptr++;
-                if(writeptr==MAX_COMMANDS)
-                    writeptr=0;
-                count++;        
+                    errorParse();       
                 break;
             
             case '#':
@@ -93,10 +78,27 @@ void* processInput(void* arg){
                 errorParse();
             }
         }
+        if(token!='#'){ 
+            strcpy(inputCommands[writeptr], line);
+            writeptr++;
+            if(writeptr==MAX_COMMANDS)
+                writeptr=0;
+            count++; 
+        }
         pthread_cond_signal(&read);
         pthread_mutex_unlock(&lockVect);
     }
+    if (pthread_mutex_lock(&state) != 0){
+        printf("Error: Failed to close lock.\n");
+        exit(EXIT_FAILURE);
+    }
     readState = 0;
+    if (pthread_mutex_unlock(&state) != 0){
+        printf("Error: Failed to close lock.\n");
+        exit(EXIT_FAILURE);
+    }
+    pthread_cond_broadcast(&read);
+    printf("libertei\n");
     return 0;
 }
 
@@ -218,8 +220,11 @@ int main(int argc,char* argv[]) {
     FILE *inputf;
     FILE *outputf;
 
-    pthread_mutex_init(&lockmCom,NULL);
+    pthread_mutex_init(&lockVect,NULL);
     pthread_mutex_init(&lockm,NULL);
+    pthread_mutex_init(&state,NULL);
+    pthread_cond_init(&read,NULL);
+    pthread_cond_init(&write,NULL);
 
     /* Verify the input */
     if(argc != 4 || atoi(argv[3]) < 1){
@@ -255,8 +260,11 @@ int main(int argc,char* argv[]) {
     print_tecnicofs_tree(outputf);
     fclose(outputf);
     /* release allocated memory */
+    pthread_cond_destroy(&read);
+    pthread_cond_destroy(&write);
+    pthread_mutex_destroy(&state);
     pthread_mutex_destroy(&lockm);
-    pthread_mutex_destroy(&lockmCom);
+    pthread_mutex_destroy(&lockVect);
     destroy_fs();
     exit(EXIT_SUCCESS);
 }
