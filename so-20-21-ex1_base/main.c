@@ -8,76 +8,83 @@
 #include <pthread.h>
 #include "fs/operations.h"
 
-#define MAX_COMMANDS 150000
+#define MAX_COMMANDS 10
 #define MAX_INPUT_SIZE 100
 
 pthread_mutex_t lockm;
 pthread_mutex_t lockmCom;
+pthread_mutex_t lockVect;
+pthread_cond_t write;
+pthread_cond_t read;
 
 struct timespec start, finish;
 double timeSpent;
 int numberThreads = 0;
+int count=0;
+int readptr=0;
+int writeptr=0;
 
 char inputCommands[MAX_COMMANDS][MAX_INPUT_SIZE];
 int numberCommands = 0;
 int headQueue = 0;
+int readState = 1;
 
-int insertCommand(char* data) {
-    if(numberCommands != MAX_COMMANDS){
-        strcpy(inputCommands[numberCommands++], data);
-        return 1;
-    }
-    return 0;
-}
-
-char* removeCommand() {
-    if(numberCommands > 0){
-        numberCommands--;
-        return inputCommands[headQueue++];  
-    }
-    return NULL;
-}
 
 void errorParse(){
     fprintf(stderr, "Error: command invalid\n");
     exit(EXIT_FAILURE);
 }
 
-void processInput(FILE *inputf){
+void* processInput(void* arg){
+    FILE *inputf = (FILE*)arg;
     char line[MAX_INPUT_SIZE];
 
     /* break loop with ^Z or ^D */
     while (fgets(line,sizeof(line)/sizeof(char),inputf)) {
         char token, type;
         char name[MAX_INPUT_SIZE];
-
         int numTokens = sscanf(line, "%c %s %c", &token, name, &type);
-
         /* perform minimal validation */
         if (numTokens < 1) {
             continue;
+        }
+        if (pthread_mutex_lock(&lockVect) != 0){
+            printf("Error: Failed to close lock.\n");
+			exit(EXIT_FAILURE);
+        }
+        while(count==MAX_COMMANDS){
+            pthread_cond_wait(&write,&lockVect);
         }
         switch (token) {
             case 'c':
                 if(numTokens != 3)
                     errorParse();
-                if(insertCommand(line))
-                    break;
-                return;
+                strcpy(inputCommands[writeptr], line);
+                writeptr++;
+                if(writeptr==MAX_COMMANDS)
+                    writeptr=0;
+                count++;  
+                break;
             
             case 'l':
                 if(numTokens != 2)
                     errorParse();
-                if(insertCommand(line))
-                    break;
-                return;
+                strcpy(inputCommands[writeptr], line);
+                writeptr++;
+                if(writeptr==MAX_COMMANDS)
+                    writeptr=0;
+                count++;  
+                break;
             
             case 'd':
                 if(numTokens != 2)
                     errorParse();
-                if(insertCommand(line))
-                    break;
-                return;
+                strcpy(inputCommands[writeptr], line);
+                writeptr++;
+                if(writeptr==MAX_COMMANDS)
+                    writeptr=0;
+                count++;        
+                break;
             
             case '#':
                 break;
@@ -86,30 +93,39 @@ void processInput(FILE *inputf){
                 errorParse();
             }
         }
+        pthread_cond_signal(&read);
+        pthread_mutex_unlock(&lockVect);
     }
+    readState = 0;
+    return 0;
 }
 
 void* applyCommands(){
     int *vetorlocks=malloc(sizeof(int)*50);
     int *counter=malloc(sizeof(int));
-
-    if (pthread_mutex_lock(&lockmCom) != 0){
-        printf("Error: Failed to close lock.\n");
-		exit(EXIT_FAILURE);
-    }
-    while(numberCommands>0){
-        const char* command = removeCommand();
-        if (pthread_mutex_unlock(&lockmCom) != 0){
-            printf("Error: Failed to open lock.\n");
+    while(count != 0 || readState == 1){
+        printf("%d %d %ld\n",readState,count,pthread_self());
+        const char* command;
+        if (pthread_mutex_lock(&lockVect) != 0){
+            printf("Error: Failed to close lock.\n");
 			exit(EXIT_FAILURE);
         }
+        while(count==0){
+            printf("%ld\n",pthread_self());
+            pthread_cond_wait(&read,&lockVect);
+        }
+        command = inputCommands[readptr];
+        readptr++;
+        if(readptr == MAX_COMMANDS)
+            readptr = 0;
+        count--;
+        pthread_cond_signal(&write);
+        pthread_mutex_unlock(&lockVect);
+
         if(command==NULL){
-            if (pthread_mutex_lock(&lockmCom) != 0){
-                printf("Error: Failed to close lock.\n");
-			    exit(EXIT_FAILURE);
-            }
             continue;
         }
+
         char token, type;
         char name[MAX_INPUT_SIZE];
         int numTokens = sscanf(command, "%c %s %c", &token, name, &type);
@@ -135,13 +151,13 @@ void* applyCommands(){
                 }
                 break;
             case 'l':
-            *counter=0;
+                *counter=0;
                 searchResult = lookup(name,1,vetorlocks,counter);
                 if (searchResult >= 0){
-                    printf("Search: %s found\n", name);
+                    printf("Search: %s found %ld\n", name, pthread_self());
                 }
                 else{
-                    printf("Search: %s not found\n", name);
+                    printf("Search: %s not found %ld\n", name, pthread_self());
                 }
                 break;
             case 'd':
@@ -153,33 +169,43 @@ void* applyCommands(){
                 exit(EXIT_FAILURE);
             }   
         }
-        if (pthread_mutex_lock(&lockmCom) != 0){
-            printf("Error: Failed to close lock.\n");
-			exit(EXIT_FAILURE);
-        }
     }
-    if (pthread_mutex_unlock(&lockmCom) != 0){
-        printf("Error: Failed to open lock.\n");
-		exit(EXIT_FAILURE);
-    } 
     return 0;
+}
+
+void startThreadRead(FILE *inputf){
+    pthread_t *tid = malloc(sizeof(pthread_t));
+    if ((pthread_create(tid,0,processInput,inputf) != 0)){
+        printf("Cannot create thread.\n");
+        exit(EXIT_FAILURE);
+    }
+    if ((pthread_join(*tid,NULL) != 0)){
+        printf("Cannot join thread.\n");
+        exit(EXIT_FAILURE);
+    }
+    free(tid);
 }
 
 /* Initializes threads.
  * Input:
  *  - nrT: Number of threads to initialize.
  */
-void startThreads(int nrT){
+void startThreads(int nrT, FILE *inputf){
     int i;
-    pthread_t *tid=malloc(sizeof(pthread_t)*nrT);
+    pthread_t *tid=malloc(sizeof(pthread_t)*(nrT+1));
 
-    for(i=0;i<nrT;i++){
+    if ((pthread_create(&tid[0],0,processInput,inputf) != 0)){
+        printf("Cannot create thread.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    for(i=1;i<=nrT;i++){
         if ((pthread_create(&tid[i],0,applyCommands,NULL) != 0)){
             printf("Cannot create thread.\n");
             exit(EXIT_FAILURE);
         }
     }
-    for(i=0;i<nrT;i++){
+    for(i=0;i<=nrT;i++){
         if ((pthread_join(tid[i],NULL) != 0)){
             printf("Cannot join thread.\n");
             exit(EXIT_FAILURE);
@@ -208,14 +234,13 @@ int main(int argc,char* argv[]) {
         exit(EXIT_FAILURE);
     };
 
-    /* process input and print tree */
-    processInput(inputf);
-    fclose(inputf);
     if(clock_gettime(CLOCK_REALTIME, &start)!=0){
         printf("Error: cant open clock\n");
         exit(EXIT_FAILURE);
     }
-    startThreads(atoi(argv[3]));
+    /* process input and print tree */
+    startThreads(atoi(argv[3]),inputf);
+    fclose(inputf);
     if ((outputf = fopen(argv[2],"w")) == NULL ){
         printf("Error: Cannot open file.\n");
         exit(EXIT_FAILURE);
