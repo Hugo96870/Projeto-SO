@@ -13,20 +13,18 @@
 
 pthread_mutex_t lockm;
 pthread_mutex_t state;
+pthread_mutex_t lockwhile;
 pthread_mutex_t lockVect;
 pthread_cond_t write;
 pthread_cond_t read;
 
 struct timespec start, finish;
 double timeSpent;
-int numberThreads = 0;
 int count=0;
 int readptr=0;
 int writeptr=0;
 
 char inputCommands[MAX_COMMANDS][MAX_INPUT_SIZE];
-int numberCommands = 0;
-int headQueue = 0;
 int readState = 1;
 
 
@@ -41,6 +39,7 @@ void* processInput(void* arg){
 
     /* break loop with ^Z or ^D */
     while (fgets(line,sizeof(line)/sizeof(char),inputf)) {
+
         char token, type;
         char name[MAX_INPUT_SIZE];
         int numTokens = sscanf(line, "%c %s %c", &token, name, &type);
@@ -93,30 +92,36 @@ void* processInput(void* arg){
         exit(EXIT_FAILURE);
     }
     readState = 0;
+    pthread_cond_broadcast(&read);
     if (pthread_mutex_unlock(&state) != 0){
-        printf("Error: Failed to close lock.\n");
+        printf("Error: Failed to open lock.\n");
         exit(EXIT_FAILURE);
     }
-    pthread_cond_broadcast(&read);
-    printf("libertei\n");
     return 0;
 }
 
 void* applyCommands(){
     int *vetorlocks=malloc(sizeof(int)*50);
     int *counter=malloc(sizeof(int));
-    while(count != 0 || readState == 1){
-        printf("%d %d %ld\n",readState,count,pthread_self());
+    if (pthread_mutex_lock(&lockwhile) != 0){
+        printf("Error: Failed to close lock.\n");
+        exit(EXIT_FAILURE);
+    }
+    while(count > 0 || readState == 1){
+        if (pthread_mutex_unlock(&lockwhile) != 0){
+            printf("Error: Failed to open lock.\n");
+            exit(EXIT_FAILURE);
+        }
         const char* command;
         if (pthread_mutex_lock(&lockVect) != 0){
             printf("Error: Failed to close lock.\n");
 			exit(EXIT_FAILURE);
         }
-        while(count==0){
-            printf("%ld\n",pthread_self());
+        while(count==0 && readState==1){
             pthread_cond_wait(&read,&lockVect);
         }
         command = inputCommands[readptr];
+        /* Secção critica ????????????????????????? */
         readptr++;
         if(readptr == MAX_COMMANDS)
             readptr = 0;
@@ -127,7 +132,6 @@ void* applyCommands(){
         if(command==NULL){
             continue;
         }
-
         char token, type;
         char name[MAX_INPUT_SIZE];
         int numTokens = sscanf(command, "%c %s %c", &token, name, &type);
@@ -156,10 +160,10 @@ void* applyCommands(){
                 *counter=0;
                 searchResult = lookup(name,1,vetorlocks,counter);
                 if (searchResult >= 0){
-                    printf("Search: %s found %ld\n", name, pthread_self());
+                    printf("Search: %s found\n", name);
                 }
                 else{
-                    printf("Search: %s not found %ld\n", name, pthread_self());
+                    printf("Search: %s not found\n", name);
                 }
                 break;
             case 'd':
@@ -171,6 +175,14 @@ void* applyCommands(){
                 exit(EXIT_FAILURE);
             }   
         }
+        if (pthread_mutex_lock(&lockwhile) != 0){
+            printf("Error: Failed to close lock.\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+    if (pthread_mutex_unlock(&lockwhile) != 0){
+        printf("Error: Failed to open lock.\n");
+        exit(EXIT_FAILURE);
     }
     return 0;
 }
@@ -223,6 +235,7 @@ int main(int argc,char* argv[]) {
     pthread_mutex_init(&lockVect,NULL);
     pthread_mutex_init(&lockm,NULL);
     pthread_mutex_init(&state,NULL);
+    pthread_mutex_init(&lockwhile,NULL);
     pthread_cond_init(&read,NULL);
     pthread_cond_init(&write,NULL);
 
@@ -264,6 +277,7 @@ int main(int argc,char* argv[]) {
     pthread_cond_destroy(&write);
     pthread_mutex_destroy(&state);
     pthread_mutex_destroy(&lockm);
+    pthread_mutex_destroy(&lockwhile);
     pthread_mutex_destroy(&lockVect);
     destroy_fs();
     exit(EXIT_SUCCESS);

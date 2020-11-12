@@ -4,7 +4,7 @@ inputdir=$1
 outputdir=$2
 maxthreads=$3
 cd $inputdir
-for test in "$inputdir"/*.txt
+for test in *.txt
 do
     for i in $(seq 1 $maxthreads)
     do
