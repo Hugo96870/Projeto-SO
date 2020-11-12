@@ -69,7 +69,11 @@ void* processInput(void* arg){
                 if(numTokens != 2)
                     errorParse();       
                 break;
-            
+            case 'm':
+                if(numTokens != 2)
+                    errorParse();
+                break;
+
             case '#':
                 break;
             
@@ -165,6 +169,10 @@ void* applyCommands(){
                 else{
                     printf("Search: %s not found\n", name);
                 }
+                break;
+            case 'm':
+                printf("Move: %s\n", name);
+                move();
                 break;
             case 'd':
                 printf("Delete: %s\n", name);
