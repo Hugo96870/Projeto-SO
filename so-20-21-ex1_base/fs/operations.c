@@ -5,12 +5,14 @@
 #include <pthread.h>
 #include <unistd.h>
 
+#define MOVE 3
 #define WRITE 1
 #define READ 0
 #define LER 1
 #define ESCREVER 2
 #define APAGAR 2
 #define CINQUENTA 50
+#define ERROR -1
 
 extern inode_t inode_table[INODE_TABLE_SIZE];
 
@@ -301,6 +303,134 @@ int delete(char *name){
 	return SUCCESS;
 }
 
+int createMove(int *vetorlocks, int *counter, int parent_inumber, char *child_name, char *parent_name, type cType, union Data cdata){
+	int child_inumber = inode_create(cType);
+
+	if (child_inumber == FAIL) {
+		printf("failed to create %s in  %s, couldn't allocate inode\n",
+		        child_name, parent_name);
+		openlocks(vetorlocks,counter);
+		return FAIL;
+	}
+
+	if (dir_add_entry(parent_inumber, child_inumber, child_name) == FAIL) {
+		printf("could not add entry %s in dir %s\n",
+		       child_name, parent_name);
+		openlocks(vetorlocks,counter);
+		return FAIL;
+	}
+	return SUCCESS;
+}
+
+int deleteMove(int *vetorlocks, int *counter, int child_inumber, int parent_inumber, char *child_name, char *parent_name){
+
+	/* remove entry from folder that contained deleted node */
+	if (dir_reset_entry(parent_inumber, child_inumber) == FAIL) {
+		printf("failed to delete %s from dir %s\n",
+		       child_name, parent_name);
+		openlocks(vetorlocks,counter);
+		return FAIL;
+	}
+
+	if (inode_delete(child_inumber) == FAIL) {
+		printf("could not delete inode number %d from dir %s\n",
+		       child_inumber, parent_name);
+		openlocks(vetorlocks,counter);
+		return FAIL;
+	}
+	
+	return SUCCESS;
+}
+
+int move(char *name1, char *name2){
+
+	int *vetorlocks=malloc(sizeof(int)*50);
+    int *counter=malloc(sizeof(int));
+	*counter=0;
+	int parent_inumber1, parent_inumber2, child_inumber1;
+	char *parent_name1, *parent_name2, *child_name1, *child_name2, name_copy1[MAX_FILE_NAME], name_copy2[MAX_FILE_NAME];
+	type pType, cType;
+	union Data pdata, cdata;
+
+	strcpy(name_copy1, name1);
+	strcpy(name_copy2, name2);
+
+	split_parent_child_from_path(name_copy1, &parent_name1, &child_name1);
+	split_parent_child_from_path(name_copy2, &parent_name2, &child_name2);
+
+	if (strcmp(parent_name1,parent_name2) < 0){
+		parent_inumber1 = lookup(parent_name1, 3, vetorlocks, counter);	
+		parent_inumber2 = lookup(parent_name2, 3, vetorlocks, counter);
+	}
+	else if(strcmp(parent_name2,parent_name1)==0){
+		parent_inumber1 = lookup(parent_name1, 3, vetorlocks, counter);
+		parent_inumber2 = parent_inumber1;
+	}
+	else{
+		parent_inumber2 = lookup(parent_name2, 3, vetorlocks, counter);
+		parent_inumber1 = lookup(parent_name1, 3, vetorlocks, counter);
+	}
+
+	if (parent_inumber1 == FAIL) {
+		printf("failed to move %s, invalid parent dir %s\n",
+		        child_name1, parent_name1);
+		openlocks(vetorlocks,counter);
+		return FAIL;
+	}
+
+	inode_get(parent_inumber1, &pType, &pdata);
+
+	if(pType != T_DIRECTORY) {
+		printf("failed to move %s, parent %s is not a dir\n",
+		        child_name1, parent_name1);
+		openlocks(vetorlocks,counter);
+		return FAIL;
+	}
+
+	child_inumber1 = lookup_sub_node(child_name1, pdata.dirEntries);
+
+	if (child_inumber1 == FAIL) {
+		printf("could not move %s, does not exist in dir %s\n",
+		       name1, parent_name1);
+		openlocks(vetorlocks,counter);
+		return FAIL;
+	}
+
+
+	if (parent_inumber2 == FAIL) {
+		printf("failed to move %s, invalid parent dir %s\n",
+		        child_name1, parent_name2);
+		openlocks(vetorlocks,counter);
+		return FAIL;
+	}
+	inode_get(parent_inumber2, &pType, &pdata);
+
+	if(pType != T_DIRECTORY) {
+		printf("failed to move %s, parent %s is not a dir\n",
+		        child_name1, parent_name2);
+		openlocks(vetorlocks,counter);
+		return FAIL;
+	}
+
+	if (lookup_sub_node(child_name2, pdata.dirEntries) != FAIL) {
+		printf("failed to move %s, already exists in dir %s\n",
+		       child_name2, parent_name2);
+		openlocks(vetorlocks,counter);
+		return FAIL;
+	}
+
+	closelocks(WRITE, &inode_table[child_inumber1].lock, vetorlocks, child_inumber1, counter);
+	inode_get(child_inumber1, &cType, &cdata);
+
+	int error = deleteMove(vetorlocks, counter, child_inumber1, parent_inumber1, child_name1, parent_name1);
+	if (error == ERROR){
+		exit(EXIT_FAILURE);
+	}
+	createMove(vetorlocks, counter, parent_inumber2, child_name2, parent_name2, cType, cdata);
+	openlocks(vetorlocks, counter);
+
+	return SUCCESS;
+}
 
 /*
  * Lookup for a given path.

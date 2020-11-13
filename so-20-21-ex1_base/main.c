@@ -70,7 +70,7 @@ void* processInput(void* arg){
                     errorParse();       
                 break;
             case 'm':
-                if(numTokens != 2)
+                if(numTokens != 3)
                     errorParse();
                 break;
 
@@ -125,7 +125,7 @@ void* applyCommands(){
             pthread_cond_wait(&read,&lockVect);
         }
         command = inputCommands[readptr];
-        /* Secção critica ????????????????????????? */
+
         readptr++;
         if(readptr == MAX_COMMANDS)
             readptr = 0;
@@ -136,9 +136,9 @@ void* applyCommands(){
         if(command==NULL){
             continue;
         }
-        char token, type;
-        char name[MAX_INPUT_SIZE];
-        int numTokens = sscanf(command, "%c %s %c", &token, name, &type);
+        char token;
+        char name[MAX_INPUT_SIZE], type[MAX_INPUT_SIZE];
+        int numTokens = sscanf(command, "%c %s %s", &token, name, type);
         if (numTokens < 2) {
             fprintf(stderr, "Error: invalid command in Queue\n");
             exit(EXIT_FAILURE);
@@ -146,7 +146,7 @@ void* applyCommands(){
         int searchResult;
         switch (token) {
             case 'c':
-                switch (type) {
+                switch (type[0]) {
                     case 'f':
                         printf("Create file: %s\n", name);
                         create(name, T_FILE);
@@ -171,8 +171,8 @@ void* applyCommands(){
                 }
                 break;
             case 'm':
-                printf("Move: %s\n", name);
-                move();
+                printf("Move: %s %s\n", name, type);
+                move(name, type);
                 break;
             case 'd':
                 printf("Delete: %s\n", name);
