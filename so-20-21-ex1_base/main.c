@@ -11,7 +11,7 @@
 #define MAX_COMMANDS 10
 #define MAX_INPUT_SIZE 100
 
-pthread_mutex_t lockm;
+pthread_mutex_t lockm; /* Nao usado */
 pthread_mutex_t state;
 pthread_mutex_t lockwhile;
 pthread_mutex_t lockVect;
@@ -20,12 +20,12 @@ pthread_cond_t read;
 
 struct timespec start, finish;
 double timeSpent;
-int count=0;
-int readptr=0;
-int writeptr=0;
+int count = 0;
+int readptr = 0;
+int writeptr = 0;
 
 char inputCommands[MAX_COMMANDS][MAX_INPUT_SIZE];
-int readState = 1;
+int readState = 1; /* flag that indicates if there are commands to read */
 
 
 void errorParse(){
@@ -43,6 +43,7 @@ void* processInput(void* arg){
         char token, type;
         char name[MAX_INPUT_SIZE];
         int numTokens = sscanf(line, "%c %s %c", &token, name, &type);
+
         /* perform minimal validation */
         if (numTokens < 1) {
             continue;
@@ -51,8 +52,11 @@ void* processInput(void* arg){
             printf("Error: Failed to close lock.\n");
 			exit(EXIT_FAILURE);
         }
-        while(count==MAX_COMMANDS){
-            pthread_cond_wait(&write,&lockVect);
+        while(count == MAX_COMMANDS){
+            if (pthread_cond_wait(&write,&lockVect) != 0){
+                printf("Error: Failed to wait.\n");
+			    exit(EXIT_FAILURE);
+            }
         }
         switch (token) {
             case 'c':
@@ -81,22 +85,34 @@ void* processInput(void* arg){
                 errorParse();
             }
         }
-        if(token!='#'){ 
+        if(token != '#'){ 
             strcpy(inputCommands[writeptr], line);
             writeptr++;
-            if(writeptr==MAX_COMMANDS)
-                writeptr=0;
+            if(writeptr == MAX_COMMANDS)
+                writeptr = 0;
             count++; 
         }
-        pthread_cond_signal(&read);
-        pthread_mutex_unlock(&lockVect);
+        if (pthread_cond_signal(&read) != 0){
+            printf("Error: Failed to signal.\n");
+            exit(EXIT_FAILURE);
+        }
+        
+        if (pthread_mutex_unlock(&lockVect) != 0){
+            printf("Error: Failed to open lock.\n");
+            exit(EXIT_FAILURE);
+        }
     }
     if (pthread_mutex_lock(&state) != 0){
         printf("Error: Failed to close lock.\n");
         exit(EXIT_FAILURE);
-    }
+    } 
     readState = 0;
-    pthread_cond_broadcast(&read);
+
+    if (pthread_cond_broadcast(&read) != 0){
+        printf("Error: Failed to broadcast.\n");
+        exit(EXIT_FAILURE);
+    }
+
     if (pthread_mutex_unlock(&state) != 0){
         printf("Error: Failed to open lock.\n");
         exit(EXIT_FAILURE);
@@ -105,12 +121,14 @@ void* processInput(void* arg){
 }
 
 void* applyCommands(){
-    int *vetorlocks=malloc(sizeof(int)*50);
-    int *counter=malloc(sizeof(int));
+    int *vetorlocks = malloc(sizeof(int) * 50);
+    int *counter = malloc(sizeof(int));
+
     if (pthread_mutex_lock(&lockwhile) != 0){
         printf("Error: Failed to close lock.\n");
         exit(EXIT_FAILURE);
     }
+    
     while(count > 0 || readState == 1){
         if (pthread_mutex_unlock(&lockwhile) != 0){
             printf("Error: Failed to open lock.\n");
@@ -122,7 +140,10 @@ void* applyCommands(){
 			exit(EXIT_FAILURE);
         }
         while(count==0 && readState==1){
-            pthread_cond_wait(&read,&lockVect);
+            if (pthread_cond_wait(&read,&lockVect) != 0){
+                printf("Error: Failed to wait.\n");
+			    exit(EXIT_FAILURE);
+            }
         }
         command = inputCommands[readptr];
 
@@ -130,12 +151,19 @@ void* applyCommands(){
         if(readptr == MAX_COMMANDS)
             readptr = 0;
         count--;
-        pthread_cond_signal(&write);
-        pthread_mutex_unlock(&lockVect);
+        if (pthread_cond_signal(&write) != 0){
+            printf("Error: Failed to signal.\n");
+			exit(EXIT_FAILURE);
+        }
+        if (pthread_mutex_unlock(&lockVect) != 0){
+            printf("Error: Failed to open lock.\n");
+			exit(EXIT_FAILURE);
+        }
 
         if(command==NULL){
             continue;
         }
+
         char token;
         char name[MAX_INPUT_SIZE], type[MAX_INPUT_SIZE];
         int numTokens = sscanf(command, "%c %s %s", &token, name, type);
@@ -162,7 +190,7 @@ void* applyCommands(){
                 break;
             case 'l':
                 *counter=0;
-                searchResult = lookup(name,1,vetorlocks,counter);
+                searchResult = lookup(name, 1, vetorlocks, counter);
                 if (searchResult >= 0){
                     printf("Search: %s found\n", name);
                 }
@@ -240,6 +268,7 @@ int main(int argc,char* argv[]) {
     FILE *inputf;
     FILE *outputf;
 
+    /* init mutex and cond */
     pthread_mutex_init(&lockVect,NULL);
     pthread_mutex_init(&lockm,NULL);
     pthread_mutex_init(&state,NULL);
@@ -247,7 +276,7 @@ int main(int argc,char* argv[]) {
     pthread_cond_init(&read,NULL);
     pthread_cond_init(&write,NULL);
 
-    /* Verify the input */
+    /* verify the input */
     if(argc != 4 || atoi(argv[3]) < 1){
         printf("Error: Invalid input");
         exit(EXIT_FAILURE);
@@ -255,22 +284,26 @@ int main(int argc,char* argv[]) {
 
     /* init filesystem */
     init_fs();
-    if ((inputf = fopen(argv[1],"r")) == NULL){
+    if ((inputf = fopen(argv[1], "r")) == NULL){
         printf("Error: Cannot open file.\n");
         exit(EXIT_FAILURE);
     };
 
+    /* init clock */
     if(clock_gettime(CLOCK_REALTIME, &start)!=0){
         printf("Error: cant open clock\n");
         exit(EXIT_FAILURE);
     }
+
     /* process input and print tree */
-    startThreads(atoi(argv[3]),inputf);
+    startThreads(atoi(argv[3]), inputf);
     fclose(inputf);
-    if ((outputf = fopen(argv[2],"w")) == NULL ){
+    if ((outputf = fopen(argv[2], "w")) == NULL ){
         printf("Error: Cannot open file.\n");
         exit(EXIT_FAILURE);
     }
+
+    /* finish clock */
     if(clock_gettime(CLOCK_REALTIME, &finish)!=0){
         printf("Error: Cant close clock\n");
         exit(EXIT_FAILURE);
@@ -278,8 +311,10 @@ int main(int argc,char* argv[]) {
     timeSpent = (finish.tv_sec - start.tv_sec);
     timeSpent += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
     printf("TecnicoFS completed in %.4f seconds.\n", timeSpent);
+
     print_tecnicofs_tree(outputf);
     fclose(outputf);
+
     /* release allocated memory */
     pthread_cond_destroy(&read);
     pthread_cond_destroy(&write);
@@ -287,6 +322,7 @@ int main(int argc,char* argv[]) {
     pthread_mutex_destroy(&lockm);
     pthread_mutex_destroy(&lockwhile);
     pthread_mutex_destroy(&lockVect);
+
     destroy_fs();
     exit(EXIT_SUCCESS);
 }

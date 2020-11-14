@@ -10,7 +10,7 @@
 
 inode_t inode_table[INODE_TABLE_SIZE];
 
-extern pthread_mutex_t lockm;
+extern pthread_mutex_t lockm; /* NAo usado */
 
 /*
  * Sleeps for synchronization testing.
@@ -28,7 +28,7 @@ void inode_table_init() {
         inode_table[i].nodeType = T_NONE;
         inode_table[i].data.dirEntries = NULL;
         inode_table[i].data.fileContents = NULL;
-        pthread_rwlock_init(&inode_table[i].lock,NULL);
+        pthread_rwlock_init(&inode_table[i].lock, NULL);
     }
 }
 
@@ -127,8 +127,10 @@ int inode_get(int inumber, type *nType, union Data *data) {
     if (nType){
         *nType = inode_table[inumber].nodeType;
     }
-    if (data)
+
+    if (data){
         *data = inode_table[inumber].data;
+    }
 
     return SUCCESS;
 }
@@ -200,8 +202,7 @@ int dir_add_entry(int inumber, int sub_inumber, char *sub_name) {
     }
 
     if (strlen(sub_name) == 0 ) {
-        printf("inode_add_entry: \
-               entry name must be non-empty\n");
+        printf("inode_add_entry: entry name must be non-empty\n");
         return FAIL;
     }
     
