@@ -224,7 +224,6 @@ int create(char *name, type nodeType){
 		return FAIL;
 	}
 	openlocks(vetorlocks, counter);
-	sleep(2);
 	return SUCCESS;
 }
 
@@ -320,19 +319,22 @@ int move(char *name1, char *name2){
     strcpy(name_copy1, name1);
     strcpy(name_copy2, name2);
 
+
     split_parent_child_from_path(name_copy1, &parent_name1, &child_name1);
     split_parent_child_from_path(name_copy2, &parent_name2, &child_name2);
 
-    if (strcmp(parent_name1,parent_name2) < 0){
+	printf("%s %s %s %s\n", parent_name1, parent_name2, child_name1, child_name2);
+
+    if (strcmp(parent_name1,parent_name2) < 0){;
         char *v;
-        v = strstr(parent_name2, parent_name1);
-        printf("%s %s\n",parent_name1, parent_name2);
+        v = strstr(parent_name2, name1);
         if(v != NULL){
-            parent_inumber1 = lookup(parent_name1, MOVE, vetorlocks, counter);
+			printf("failed to move %s, invalid operation.\n",name1);
+			exit(EXIT_FAILURE);
         }
         else{
-            parent_inumber1 = lookup(parent_name1, MOVE, vetorlocks, counter);  
-            parent_inumber2 = lookup(parent_name2, MOVE, vetorlocks, counter);
+            parent_inumber1 = lookup(parent_name1, MOVE, vetorlocks, counter); 
+			parent_inumber2 = lookup(parent_name2, MOVE, vetorlocks, counter);
         }
     }
     else if(strcmp(parent_name2,parent_name1) == 0){
@@ -340,11 +342,11 @@ int move(char *name1, char *name2){
         parent_inumber2 = parent_inumber1;
     }
     else{
-        char *v;
+        char *v = malloc(sizeof(char)*MAX_FILE_NAME);
         v = strstr(parent_name1, parent_name2);
-        printf("%s %s\n",parent_name1, parent_name2);
         if(v != NULL){
             parent_inumber2 = lookup(parent_name2, MOVE, vetorlocks, counter);
+			parent_inumber1 = lookup(parent_name1, MOVE, vetorlocks, counter);
         }
         else{
             parent_inumber2 = lookup(parent_name2, MOVE, vetorlocks, counter);
