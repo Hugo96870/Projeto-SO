@@ -9,10 +9,8 @@
 #define WRITE 1
 #define READ 0
 #define LER 1
-#define ESCREVER 2
-#define APAGAR 2
-#define CINQUENTA 50
 #define ERROR -1
+#define CREATE 2
 
 extern inode_t inode_table[INODE_TABLE_SIZE];
 
@@ -97,7 +95,7 @@ void split_parent_child_from_path(char * path, char ** parent, char ** child) {
  */
 void init_fs() {
 	inode_table_init();
-	
+
 	/* create root inode */
 	int root = inode_create(T_DIRECTORY);
 	
@@ -222,6 +220,7 @@ int create(char *name, type nodeType){
 		return FAIL;
 	}
 	openlocks(vetorlocks,counter);
+	sleep(2);
 	return SUCCESS;
 }
 
@@ -303,45 +302,6 @@ int delete(char *name){
 	return SUCCESS;
 }
 
-int createMove(int *vetorlocks, int *counter, int parent_inumber, char *child_name, char *parent_name, type cType, union Data cdata){
-	int child_inumber = inode_create(cType);
-
-	if (child_inumber == FAIL) {
-		printf("failed to create %s in  %s, couldn't allocate inode\n",
-		        child_name, parent_name);
-		openlocks(vetorlocks,counter);
-		return FAIL;
-	}
-
-	if (dir_add_entry(parent_inumber, child_inumber, child_name) == FAIL) {
-		printf("could not add entry %s in dir %s\n",
-		       child_name, parent_name);
-		openlocks(vetorlocks,counter);
-		return FAIL;
-	}
-	return SUCCESS;
-}
-
-int deleteMove(int *vetorlocks, int *counter, int child_inumber, int parent_inumber, char *child_name, char *parent_name){
-
-	/* remove entry from folder that contained deleted node */
-	if (dir_reset_entry(parent_inumber, child_inumber) == FAIL) {
-		printf("failed to delete %s from dir %s\n",
-		       child_name, parent_name);
-		openlocks(vetorlocks,counter);
-		return FAIL;
-	}
-
-	if (inode_delete(child_inumber) == FAIL) {
-		printf("could not delete inode number %d from dir %s\n",
-		       child_inumber, parent_name);
-		openlocks(vetorlocks,counter);
-		return FAIL;
-	}
-	
-	return SUCCESS;
-}
-
 int move(char *name1, char *name2){
 
 	int *vetorlocks=malloc(sizeof(int)*50);
@@ -349,8 +309,8 @@ int move(char *name1, char *name2){
 	*counter=0;
 	int parent_inumber1, parent_inumber2, child_inumber1;
 	char *parent_name1, *parent_name2, *child_name1, *child_name2, name_copy1[MAX_FILE_NAME], name_copy2[MAX_FILE_NAME];
-	type pType, cType;
-	union Data pdata, cdata;
+	type pType;
+	union Data pdata;
 
 	strcpy(name_copy1, name1);
 	strcpy(name_copy2, name2);
@@ -362,7 +322,7 @@ int move(char *name1, char *name2){
 		parent_inumber1 = lookup(parent_name1, 3, vetorlocks, counter);	
 		parent_inumber2 = lookup(parent_name2, 3, vetorlocks, counter);
 	}
-	else if(strcmp(parent_name2,parent_name1)==0){
+	else if(strcmp(parent_name2,parent_name1) == 0){
 		parent_inumber1 = lookup(parent_name1, 3, vetorlocks, counter);
 		parent_inumber2 = parent_inumber1;
 	}
@@ -419,14 +379,20 @@ int move(char *name1, char *name2){
 		return FAIL;
 	}
 
-	closelocks(WRITE, &inode_table[child_inumber1].lock, vetorlocks, child_inumber1, counter);
-	inode_get(child_inumber1, &cType, &cdata);
-
-	int error = deleteMove(vetorlocks, counter, child_inumber1, parent_inumber1, child_name1, parent_name1);
-	if (error == ERROR){
-		exit(EXIT_FAILURE);
+	if (dir_reset_entry(parent_inumber1, child_inumber1) == FAIL) {
+		printf("failed to delete %s from dir %s\n",
+		       child_name1, parent_name1);
+		openlocks(vetorlocks,counter);
+		return FAIL;
 	}
-	createMove(vetorlocks, counter, parent_inumber2, child_name2, parent_name2, cType, cdata);
+
+	if (dir_add_entry(parent_inumber2, child_inumber1, child_name2) == FAIL) {
+		printf("could not add entry %s in dir %s\n",
+		       child_name2, parent_name2);
+		openlocks(vetorlocks,counter);
+		return FAIL;
+	}
+
 	openlocks(vetorlocks, counter);
 
 	return SUCCESS;

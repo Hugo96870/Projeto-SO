@@ -6,6 +6,8 @@
 #include <pthread.h>
 #include "../tecnicofs-api-constants.h"
 
+#define MOVE 3
+
 inode_t inode_table[INODE_TABLE_SIZE];
 
 extern pthread_mutex_t lockm;
@@ -39,10 +41,10 @@ void inode_table_destroy() {
         if (inode_table[i].nodeType != T_NONE) {
             /* as data is an union, the same pointer is used for both dirEntries and fileContents */
             /* just release one of them */
-	    if (inode_table[i].data.dirEntries){
-            free(inode_table[i].data.dirEntries);
-            pthread_rwlock_destroy(&inode_table[i].lock);
-      }
+            if (inode_table[i].data.dirEntries){
+                free(inode_table[i].data.dirEntries);
+                pthread_rwlock_destroy(&inode_table[i].lock);
+            }
         }
     }
 }
