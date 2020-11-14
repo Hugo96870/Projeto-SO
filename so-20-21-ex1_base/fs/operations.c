@@ -309,98 +309,114 @@ int delete(char *name){
 
 int move(char *name1, char *name2){
 
-	int *vetorlocks = malloc(sizeof(int) * 50);
+    int *vetorlocks = malloc(sizeof(int) * 50);
     int *counter = malloc(sizeof(int));
-	*counter = 0;
-	int parent_inumber1, parent_inumber2, child_inumber1;
-	char *parent_name1, *parent_name2, *child_name1, *child_name2, name_copy1[MAX_FILE_NAME], name_copy2[MAX_FILE_NAME];
-	type pType;
-	union Data pdata;
+    *counter = 0;
+    int parent_inumber1, parent_inumber2, child_inumber1;
+    char *parent_name1, *parent_name2, *child_name1, *child_name2, name_copy1[MAX_FILE_NAME], name_copy2[MAX_FILE_NAME];
+    type pType;
+    union Data pdata;
 
-	strcpy(name_copy1, name1);
-	strcpy(name_copy2, name2);
+    strcpy(name_copy1, name1);
+    strcpy(name_copy2, name2);
 
-	split_parent_child_from_path(name_copy1, &parent_name1, &child_name1);
-	split_parent_child_from_path(name_copy2, &parent_name2, &child_name2);
+    split_parent_child_from_path(name_copy1, &parent_name1, &child_name1);
+    split_parent_child_from_path(name_copy2, &parent_name2, &child_name2);
 
-	if (strcmp(parent_name1,parent_name2) < 0){
-		parent_inumber1 = lookup(parent_name1, 3, vetorlocks, counter);	
-		parent_inumber2 = lookup(parent_name2, 3, vetorlocks, counter);
-	}
-	else if(strcmp(parent_name2,parent_name1) == 0){
-		parent_inumber1 = lookup(parent_name1, 3, vetorlocks, counter);
-		parent_inumber2 = parent_inumber1;
-	}
-	else{
-		parent_inumber2 = lookup(parent_name2, 3, vetorlocks, counter);
-		parent_inumber1 = lookup(parent_name1, 3, vetorlocks, counter);
-	}
+    if (strcmp(parent_name1,parent_name2) < 0){
+        char *v;
+        v = strstr(parent_name2, parent_name1);
+        printf("%s %s\n",parent_name1, parent_name2);
+        if(v != NULL){
+            parent_inumber1 = lookup(parent_name1, MOVE, vetorlocks, counter);
+        }
+        else{
+            parent_inumber1 = lookup(parent_name1, MOVE, vetorlocks, counter);  
+            parent_inumber2 = lookup(parent_name2, MOVE, vetorlocks, counter);
+        }
+    }
+    else if(strcmp(parent_name2,parent_name1) == 0){
+        parent_inumber1 = lookup(parent_name1, MOVE, vetorlocks, counter);
+        parent_inumber2 = parent_inumber1;
+    }
+    else{
+        char *v;
+        v = strstr(parent_name1, parent_name2);
+        printf("%s %s\n",parent_name1, parent_name2);
+        if(v != NULL){
+            parent_inumber2 = lookup(parent_name2, MOVE, vetorlocks, counter);
+        }
+        else{
+            parent_inumber2 = lookup(parent_name2, MOVE, vetorlocks, counter);
+            parent_inumber1 = lookup(parent_name1, MOVE, vetorlocks, counter);
+        }
+    }
 
-	if (parent_inumber1 == FAIL) {
-		printf("failed to move %s, invalid parent dir %s\n",
-		        child_name1, parent_name1);
-		openlocks(vetorlocks, ounter);
-		return FAIL;
-	}
+    if (parent_inumber1 == FAIL) {
+        printf("failed to move %s, invalid parent dir %s\n",
+                child_name1, parent_name1);
+        openlocks(vetorlocks,counter);
+        return FAIL;
+    }
 
-	inode_get(parent_inumber1, &pType, &pdata);
+    inode_get(parent_inumber1, &pType, &pdata);
 
-	if(pType != T_DIRECTORY) {
-		printf("failed to move %s, parent %s is not a dir\n",
-		        child_name1, parent_name1);
-		openlocks(vetorlocks, counter);
-		return FAIL;
-	}
+    if(pType != T_DIRECTORY) {
+        printf("failed to move %s, parent %s is not a dir\n",
+                child_name1, parent_name1);
+        openlocks(vetorlocks,counter);
+        return FAIL;
+    }
 
-	child_inumber1 = lookup_sub_node(child_name1, pdata.dirEntries);
+    child_inumber1 = lookup_sub_node(child_name1, pdata.dirEntries);
 
-	if (child_inumber1 == FAIL) {
-		printf("could not move %s, does not exist in dir %s\n",
-		       name1, parent_name1);
-		openlocks(vetorlocks, counter);
-		return FAIL;
-	}
+    if (child_inumber1 == FAIL) {
+        printf("could not move %s, does not exist in dir %s\n",
+               child_name1, parent_name1);
+        openlocks(vetorlocks,counter);
+        return FAIL;
+    }
 
 
-	if (parent_inumber2 == FAIL) {
-		printf("failed to move %s, invalid parent dir %s\n",
-		        child_name1, parent_name2);
-		openlocks(vetorlocks, counter);
-		return FAIL;
-	}
-	inode_get(parent_inumber2, &pType, &pdata);
+    if (parent_inumber2 == FAIL) {
+        printf("failed to move %s, invalid parent dir %s\n",
+                child_name1, parent_name2);
+        openlocks(vetorlocks,counter);
+        return FAIL;
+    }
+    inode_get(parent_inumber2, &pType, &pdata);
 
-	if(pType != T_DIRECTORY) {
-		printf("failed to move %s, parent %s is not a dir\n",
-		        child_name1, parent_name2);
-		openlocks(vetorlocks, counter);
-		return FAIL;
-	}
+    if(pType != T_DIRECTORY) {
+        printf("failed to move %s, parent %s is not a dir\n",
+                child_name1, parent_name2);
+        openlocks(vetorlocks,counter);
+        return FAIL;
+    }
 
-	if (lookup_sub_node(child_name2, pdata.dirEntries) != FAIL) {
-		printf("failed to move %s, already exists in dir %s\n",
-		       child_name2, parent_name2);
-		openlocks(vetorlocks, counter);
-		return FAIL;
-	}
+    if (lookup_sub_node(child_name2, pdata.dirEntries) != FAIL) {
+        printf("failed to move %s, already exists in dir %s\n",
+               child_name2, parent_name2);
+        openlocks(vetorlocks,counter);
+        return FAIL;
+    }
 
-	if (dir_reset_entry(parent_inumber1, child_inumber1) == FAIL) {
-		printf("failed to delete %s from dir %s\n",
-		       child_name1, parent_name1);
-		openlocks(vetorlocks, counter);
-		return FAIL;
-	}
+    if (dir_reset_entry(parent_inumber1, child_inumber1) == FAIL) {
+        printf("failed to delete %s from dir %s\n",
+               child_name1, parent_name1);
+        openlocks(vetorlocks,counter);
+        return FAIL;
+    }
 
-	if (dir_add_entry(parent_inumber2, child_inumber1, child_name2) == FAIL) {
-		printf("could not add entry %s in dir %s\n",
-		       child_name2, parent_name2);
-		openlocks(vetorlocks, counter);
-		return FAIL;
-	}
+    if (dir_add_entry(parent_inumber2, child_inumber1, child_name2) == FAIL) {
+        printf("could not add entry %s in dir %s\n",
+               child_name2, parent_name2);
+        openlocks(vetorlocks,counter);
+        return FAIL;
+    }
 
-	openlocks(vetorlocks, counter);
+    openlocks(vetorlocks, counter);
 
-	return SUCCESS;
+    return SUCCESS;
 }
 
 /*
