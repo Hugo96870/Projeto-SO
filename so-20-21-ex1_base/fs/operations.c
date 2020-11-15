@@ -331,15 +331,13 @@ int move(char *name1, char *name2){
     split_parent_child_from_path(name_copy1, &parent_name1, &child_name1);
     split_parent_child_from_path(name_copy2, &parent_name2, &child_name2);
 
-	printf("%s %s %s %s\n", parent_name1, parent_name2, child_name1, child_name2);
-
     if (strcmp(parent_name1,parent_name2) < 0){;
         char *v,*b;
         v = strstr(parent_name2, name1);
 		b = strstr(parent_name2, parent_name1);
         if(v != NULL){
 			printf("failed to move %s, invalid operation.\n",name1);
-			exit(EXIT_FAILURE);
+			return ERROR;
         }
 		if(b != NULL){
 			parent_inumber1 = lookup(parent_name1, MOVE, vetorlocks, counter); 
@@ -430,7 +428,6 @@ int move(char *name1, char *name2){
     }
 
     openlocks(vetorlocks, counter);
-
     return SUCCESS;
 }
 
