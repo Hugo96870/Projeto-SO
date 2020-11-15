@@ -10,14 +10,16 @@
 #define READ 0
 #define LER 1
 #define ERROR -1
-#define CREATE 2
 
 extern inode_t inode_table[INODE_TABLE_SIZE];
 
-/* Closes locks according the sync strategy 
+/* Closes locks
  * Input: 
- *  - aux: describes the critical section as a read or write critical section
- * 	MUDAERRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
+ *  - state: defines if we will do a write or a read lock.
+ *  - lock: the lock that will be locked.
+ * 	- vetorlocks: a vector where are saved the inumbers of the inodes that have been locked.
+ *  - inumber: the inumber of the inode that will be locked.
+ *  - counter: the counter that increases the vetorlocks index everytime a new lock is locked.
  */
 
 void closelocks(int state, pthread_rwlock_t *lock, int vetorlocks[], int inumber, int *counter){
@@ -43,8 +45,8 @@ void closelocks(int state, pthread_rwlock_t *lock, int vetorlocks[], int inumber
 
 /* Open locks 
  * Input: 
- *  - aux: describes the critical section as a read or write critical section
- * MUDARRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
+ *  - vetorlocks: a vector where are saved the inumbers of the inodes that have been locked.
+ *  - counter: the counter that increases the vetorlocks index everytime a new lock is locked.
  */
 
 void openlocks(int vetorlocks[], int *counter){
@@ -57,6 +59,13 @@ void openlocks(int vetorlocks[], int *counter){
 		j += 1;
 	}
 }
+
+/* Verify if a inode has been already locked.
+ * Input:
+ *  - inumber: the inumber of the inode that we will verify if is locked.
+ *  - locksVector: the vector that contains the inumbers of the inodes that have been locked.
+ *  - number of inodes that have been locked.
+ */
 int isInVector(int inumber, int locksVector[], int *counter){
 	int i;
 	for (i = 0; i<*counter; i++){

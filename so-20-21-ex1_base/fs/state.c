@@ -6,11 +6,7 @@
 #include <pthread.h>
 #include "../tecnicofs-api-constants.h"
 
-#define MOVE 3
-
 inode_t inode_table[INODE_TABLE_SIZE];
-
-extern pthread_mutex_t lockm; /* NAo usado */
 
 /*
  * Sleeps for synchronization testing.
