@@ -57,6 +57,14 @@ void openlocks(int vetorlocks[], int *counter){
 		j += 1;
 	}
 }
+int isInVector(int inumber, int locksVector[], int *counter){
+	int i;
+	for (i = 0; i<*counter; i++){
+		if (inumber == locksVector[i])
+			return 1;
+	}
+	return 0;
+}
 
 /* Given a path, fills pointers with strings for the parent path and child
  * file name
@@ -326,12 +334,17 @@ int move(char *name1, char *name2){
 	printf("%s %s %s %s\n", parent_name1, parent_name2, child_name1, child_name2);
 
     if (strcmp(parent_name1,parent_name2) < 0){;
-        char *v;
+        char *v,*b;
         v = strstr(parent_name2, name1);
+		b = strstr(parent_name2, parent_name1);
         if(v != NULL){
 			printf("failed to move %s, invalid operation.\n",name1);
 			exit(EXIT_FAILURE);
         }
+		if(b != NULL){
+			parent_inumber1 = lookup(parent_name1, MOVE, vetorlocks, counter); 
+			parent_inumber2 = lookup(parent_name2, MOVE, vetorlocks, counter);/*-----------------------------------------*/
+		}
         else{
             parent_inumber1 = lookup(parent_name1, MOVE, vetorlocks, counter); 
 			parent_inumber2 = lookup(parent_name2, MOVE, vetorlocks, counter);
@@ -346,7 +359,7 @@ int move(char *name1, char *name2){
         v = strstr(parent_name1, parent_name2);
         if(v != NULL){
             parent_inumber2 = lookup(parent_name2, MOVE, vetorlocks, counter);
-			parent_inumber1 = lookup(parent_name1, MOVE, vetorlocks, counter);
+			parent_inumber1 = lookup(parent_name1, MOVE, vetorlocks, counter); /*----------------------------------*/
         }
         else{
             parent_inumber2 = lookup(parent_name2, MOVE, vetorlocks, counter);
@@ -446,12 +459,13 @@ int lookup(char *name, int tipo, int vetorlocks[], int *counter) {
 	union Data data;
 
 	char *path = strtok_r(full_path, delim, &saveptr);
-
-	if(path == NULL){
-		closelocks(WRITE, &inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
-	}
-	else{
-		closelocks(READ, &inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
+	if(!(isInVector(current_inumber, vetorlocks, counter))){
+		if(path == NULL){
+			closelocks(WRITE, &inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
+		}
+		else{
+			closelocks(READ, &inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
+		}
 	}	
 
 	/* get root inode data */
@@ -461,15 +475,17 @@ int lookup(char *name, int tipo, int vetorlocks[], int *counter) {
 
 	while (path != NULL && (current_inumber = lookup_sub_node(path, data.dirEntries)) != FAIL) {
 		path = strtok_r(NULL, delim, &saveptr);
-		if (path != NULL){
-			closelocks(READ,&inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
-		}
-		else if(path == NULL){
-			if(tipo == LER){
+		if(!(isInVector(current_inumber, vetorlocks, counter))){
+			if (path != NULL){
 				closelocks(READ,&inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
-			}	
-			else{
-				closelocks(WRITE,&inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
+			}
+			else if(path == NULL){
+				if(tipo == LER){
+					closelocks(READ,&inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
+				}	
+				else{
+					closelocks(WRITE,&inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
+				}
 			}
 		}
 		inode_get(current_inumber, &nType, &data);
