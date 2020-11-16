@@ -6,10 +6,10 @@
 #include <unistd.h>
 
 #define MOVE 3
+#define CREATE 2
+#define DELETE 2
 #define WRITE 1
 #define READ 0
-#define LER 1
-#define ERROR -1
 
 extern inode_t inode_table[INODE_TABLE_SIZE];
 
@@ -199,7 +199,7 @@ int create(char *name, type nodeType){
 	strcpy(name_copy, name);
 	split_parent_child_from_path(name_copy, &parent_name, &child_name);
 
-	parent_inumber = lookup(parent_name, 0, vetorlocks, counter);
+	parent_inumber = lookup(parent_name, CREATE, vetorlocks, counter);
 	
 	if (parent_inumber == FAIL) {
 		printf("failed to create %s, invalid parent dir %s\n",
@@ -265,7 +265,7 @@ int delete(char *name){
 
 	strcpy(name_copy, name);
 	split_parent_child_from_path(name_copy, &parent_name, &child_name);
-	parent_inumber = lookup(parent_name, 2, vetorlocks, counter);
+	parent_inumber = lookup(parent_name, DELETE, vetorlocks, counter);
 
 	if (parent_inumber == FAIL) {
 		printf("failed to delete %s, invalid parent dir %s\n",
@@ -346,7 +346,7 @@ int move(char *name1, char *name2){
 		b = strstr(parent_name2, parent_name1);
         if(v != NULL){
 			printf("failed to move %s, invalid operation.\n",name1);
-			return ERROR;
+			return FAIL;
         }
 		if(b != NULL){
 			parent_inumber1 = lookup(parent_name1, MOVE, vetorlocks, counter); 
@@ -486,7 +486,7 @@ int lookup(char *name, int tipo, int vetorlocks[], int *counter) {
 				closelocks(READ,&inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
 			}
 			else if(path == NULL){
-				if(tipo == LER){
+				if(tipo == READ){
 					closelocks(READ,&inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
 				}	
 				else{
@@ -496,7 +496,7 @@ int lookup(char *name, int tipo, int vetorlocks[], int *counter) {
 		}
 		inode_get(current_inumber, &nType, &data);
 	}
-	if (tipo == LER){
+	if (tipo == READ){
 		openlocks(vetorlocks, counter);
 	}	
 	return current_inumber;

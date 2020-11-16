@@ -11,6 +11,7 @@
 #define MAX_COMMANDS 10
 #define MAX_INPUT_SIZE 100
 
+pthread_mutex_t lockCreate;
 pthread_mutex_t state;
 pthread_mutex_t lockwhile;
 pthread_mutex_t lockVect;
@@ -149,7 +150,7 @@ void* applyCommands(){
             printf("Error: Failed to close lock.\n");
 			exit(EXIT_FAILURE);
         }
-        while(count==0 && readState==1){ /* Waits until there are a command to be processed and done */
+        while(count==0 && readState==1){ /* Waits until there is a command to be processed and done */
             if (pthread_cond_wait(&read,&lockVect) != 0){
                 printf("Error: Failed to wait.\n");
 			    exit(EXIT_FAILURE);
@@ -162,6 +163,15 @@ void* applyCommands(){
             readptr = 0;
         } 
         count--;
+        
+        if (count < 0){
+            if (pthread_mutex_unlock(&lockVect) != 0){
+                printf("Error: Failed to open lock.\n");
+                exit(EXIT_FAILURE);
+            }
+            break;
+        }
+
         if (pthread_cond_signal(&write) != 0){
             printf("Error: Failed to signal.\n");
 			exit(EXIT_FAILURE);
@@ -201,7 +211,7 @@ void* applyCommands(){
                 break;
             case 'l':
                 *counter=0;
-                searchResult = lookup(name, 1, vetorlocks, counter);
+                searchResult = lookup(name, 0, vetorlocks, counter);
                 if (searchResult >= 0){
                     printf("Search: %s found\n", name);
                 }
@@ -233,22 +243,6 @@ void* applyCommands(){
     }
     return 0;
 }
-
-/* 
- * Input:
- *  - nrT: Number of threads to initialize.
-void startThreadRead(FILE *inputf){
-    pthread_t *tid = malloc(sizeof(pthread_t));
-    if ((pthread_create(tid,0,processInput,inputf) != 0)){
-        printf("Cannot create thread.\n");
-        exit(EXIT_FAILURE);
-    }
-    if ((pthread_join(*tid,NULL) != 0)){
-        printf("Cannot join thread.\n");
-        exit(EXIT_FAILURE);
-    }
-    free(tid);
-}*/
 
 /* Initializes threads.
  * Input:
@@ -284,6 +278,7 @@ int main(int argc,char* argv[]) {
     FILE *outputf;
 
     /* init mutex and cond */
+    pthread_mutex_init(&lockCreate,NULL);
     pthread_mutex_init(&lockVect,NULL);
     pthread_mutex_init(&state,NULL);
     pthread_mutex_init(&lockwhile,NULL);
@@ -333,6 +328,7 @@ int main(int argc,char* argv[]) {
     /* release allocated memory */
     pthread_cond_destroy(&read);
     pthread_cond_destroy(&write);
+    pthread_mutex_destroy(&lockCreate);
     pthread_mutex_destroy(&state);
     pthread_mutex_destroy(&lockwhile);
     pthread_mutex_destroy(&lockVect);

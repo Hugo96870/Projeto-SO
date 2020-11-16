@@ -6,6 +6,8 @@
 #include <pthread.h>
 #include "../tecnicofs-api-constants.h"
 
+extern pthread_mutex_t lockCreate;
+
 inode_t inode_table[INODE_TABLE_SIZE];
 
 /*
@@ -56,10 +58,9 @@ void inode_table_destroy() {
 int inode_create(type nType) {
     /* Used for testing synchronization speedup */
     insert_delay(DELAY);
-    
+    pthread_mutex_lock(&lockCreate);
     for (int inumber = 0; inumber < INODE_TABLE_SIZE; inumber++) {
         if (inode_table[inumber].nodeType == T_NONE) {
-            pthread_rwlock_wrlock(&inode_table[inumber].lock);
             inode_table[inumber].nodeType = nType;
 
             if (nType == T_DIRECTORY) {
@@ -73,10 +74,11 @@ int inode_create(type nType) {
             else {
                 inode_table[inumber].data.fileContents = NULL;
             }
-            pthread_rwlock_unlock(&inode_table[inumber].lock);
+            pthread_mutex_unlock(&lockCreate);
             return inumber;
         }
     }
+    pthread_mutex_unlock(&lockCreate);
     return FAIL;
 }
 
