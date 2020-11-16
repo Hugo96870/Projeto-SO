@@ -4,19 +4,19 @@ inputdir=$1
 outputdir=$2
 maxthreads=$3
 #verificar nr args
-if [ ! -d "/$inputdir" ] ;
+if [ ! -d "$inputdir" ] ;
 then
-    echo "Input directory is not a directory"
+    echo "Input directory is not a directory\n"
     exit 1
 
-elif [ ! -d "/$outputdir" ] ;
+elif [ ! -d "$outputdir" ] ;
 then
-    echo "Output directory is not a directory"
+    echo "Output directory is not a directory\n"
     exit 1
 
 elif [ $maxthreads -le 0 ] ;
 then
-    echo "Invalid number of threads"
+    echo "Invalid number of threads\n"
     exit 1
 fi
 

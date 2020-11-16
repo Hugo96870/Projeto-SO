@@ -285,7 +285,6 @@ int main(int argc,char* argv[]) {
 
     /* init mutex and cond */
     pthread_mutex_init(&lockVect,NULL);
-    pthread_mutex_init(&lockm,NULL);
     pthread_mutex_init(&state,NULL);
     pthread_mutex_init(&lockwhile,NULL);
     pthread_cond_init(&read,NULL);
@@ -335,7 +334,6 @@ int main(int argc,char* argv[]) {
     pthread_cond_destroy(&read);
     pthread_cond_destroy(&write);
     pthread_mutex_destroy(&state);
-    pthread_mutex_destroy(&lockm);
     pthread_mutex_destroy(&lockwhile);
     pthread_mutex_destroy(&lockVect);
 
