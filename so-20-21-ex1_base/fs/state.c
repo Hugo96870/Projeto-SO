@@ -48,6 +48,20 @@ void inode_table_destroy() {
 }
 
 /*
+ * Tries to lock the inode identified by inumber
+ * Input:
+ *  - inumber: identifier of the i-node that will be locked or not
+ * Returns:
+ *  a: return value from pthread_rwlock_tryrwlock
+ */
+int tryLockFunction(int inumber){
+    int a;
+    a = pthread_rwlock_trywrlock(&inode_table[inumber].lock);
+    return a;
+}
+
+
+/*
  * Creates a new i-node in the table with the given information.
  * Input:
  *  - nType: the type of the node (file or directory)
@@ -58,8 +72,16 @@ void inode_table_destroy() {
 int inode_create(type nType) {
     /* Used for testing synchronization speedup */
     insert_delay(DELAY);
-    pthread_mutex_lock(&lockCreate);
+    //pthread_mutex_lock(&lockCreate);
     for (int inumber = 0; inumber < INODE_TABLE_SIZE; inumber++) {
+        int a = tryLockFunction(inumber);
+        if (a == 35 || a == 16){
+            continue;
+        }
+        else if(a==12 || a == 22){
+            printf("Error: Failed to close lock.\n");
+            exit(EXIT_FAILURE);
+        }
         if (inode_table[inumber].nodeType == T_NONE) {
             inode_table[inumber].nodeType = nType;
 
@@ -74,11 +96,13 @@ int inode_create(type nType) {
             else {
                 inode_table[inumber].data.fileContents = NULL;
             }
-            pthread_mutex_unlock(&lockCreate);
+            //pthread_mutex_unlock(&lockCreate);
+            pthread_rwlock_unlock(&inode_table[inumber].lock);
             return inumber;
         }
+        pthread_rwlock_unlock(&inode_table[inumber].lock);
     }
-    pthread_mutex_unlock(&lockCreate);
+    //pthread_mutex_unlock(&lockCreate);
     return FAIL;
 }
 
