@@ -8,30 +8,30 @@ nrArgs=0
 
 for var in "$@"
 do
-    (( nrArgs++ ))
+    (( nrArgs++ ))          # Count the number of arguments
 done
 
-if [ ! $nrArgs -eq 3 ]
+if [ ! $nrArgs -eq 3 ]      
 then 
-    echo "Invalid input"
+    echo "Invalid input."
     exit 1
 fi
 
-if [ ! -d "$inputdir" ]
+if [ ! -d "$inputdir" ]   
 then
-    echo "Input directory is not a directory"
+    echo "Input directory is not a directory."
     exit 1
 fi
 
-if [ ! -d "$outputdir" ]
+if [ ! -d "$outputdir" ]    
 then
-    echo "Output directory is not a directory"
+    echo "Output directory is not a directory."
     exit 1
 fi
 
-if [ $maxthreads -le 0 ]
+if [ $maxthreads -le 1 ]
 then
-    echo "Invalid number of threads"
+    echo "Invalid number of threads."
     exit 1
 fi
 

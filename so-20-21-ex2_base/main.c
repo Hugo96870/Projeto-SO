@@ -1,3 +1,7 @@
+/* Grupo 11 - Bernardo Castiço ist196845
+ *          - Hugo Rita ist196870
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
@@ -11,7 +15,6 @@
 #define MAX_COMMANDS 10
 #define MAX_INPUT_SIZE 100
 
-pthread_mutex_t lockCreate;
 pthread_mutex_t state;
 pthread_mutex_t lockwhile;
 pthread_mutex_t lockVect;
@@ -132,7 +135,7 @@ void* processInput(void* arg){
  * function (processInput).
  */
 void* applyCommands(){
-    int *vetorlocks = malloc(sizeof(int) * 50);
+    int *locksVector = malloc(sizeof(int) * 50);
     int *counter = malloc(sizeof(int));
 
     if (pthread_mutex_lock(&lockwhile) != 0){
@@ -181,7 +184,7 @@ void* applyCommands(){
 			exit(EXIT_FAILURE);
         }
 
-        if(command==NULL){
+        if(command == NULL){
             continue;
         }
 
@@ -211,7 +214,7 @@ void* applyCommands(){
                 break;
             case 'l':
                 *counter=0;
-                searchResult = lookup(name, 0, vetorlocks, counter);
+                searchResult = lookup(name, 0, locksVector, counter);
                 if (searchResult >= 0){
                     printf("Search: %s found\n", name);
                 }
@@ -251,21 +254,21 @@ void* applyCommands(){
  */
 void startThreads(int nrT, FILE *inputf){
     int i;
-    pthread_t *tid=malloc(sizeof(pthread_t)*(nrT+1));
+    pthread_t *tid = malloc(sizeof(pthread_t)*(nrT+1));
 
-    if ((pthread_create(&tid[0],0,processInput,inputf) != 0)){ /*Initializes the thread that will process the commands.*/
+    if ((pthread_create(&tid[0], 0, processInput, inputf) != 0)){ /*Initializes the thread that will process the commands.*/
         printf("Cannot create thread.\n");
         exit(EXIT_FAILURE);
     }
 
-    for(i=1;i<=nrT;i++){ /* Initializes the threads that will apply the commands. */
-        if ((pthread_create(&tid[i],0,applyCommands,NULL) != 0)){ 
+    for(i = 1; i <= nrT; i++){ /* Initializes the threads that will apply the commands. */
+        if ((pthread_create(&tid[i], 0, applyCommands, NULL) != 0)){ 
             printf("Cannot create thread.\n");
             exit(EXIT_FAILURE);
         }
     }
-    for(i=0;i<=nrT;i++){
-        if ((pthread_join(tid[i],NULL) != 0)){
+    for(i = 0;i <= nrT; i++){
+        if ((pthread_join(tid[i], NULL) != 0)){
             printf("Cannot join thread.\n");
             exit(EXIT_FAILURE);
         }
@@ -273,12 +276,11 @@ void startThreads(int nrT, FILE *inputf){
     free(tid);
 }
 
-int main(int argc,char* argv[]) {
+int main(int argc, char* argv[]) {
     FILE *inputf;
     FILE *outputf;
 
-    /* init mutex and cond */
-    pthread_mutex_init(&lockCreate,NULL);
+    /* init mutex and cond variables */
     pthread_mutex_init(&lockVect,NULL);
     pthread_mutex_init(&state,NULL);
     pthread_mutex_init(&lockwhile,NULL);
@@ -296,7 +298,7 @@ int main(int argc,char* argv[]) {
     if ((inputf = fopen(argv[1], "r")) == NULL){
         printf("Error: Cannot open file.\n");
         exit(EXIT_FAILURE);
-    };
+    }
 
     /* init clock */
     if(clock_gettime(CLOCK_REALTIME, &start)!=0){
@@ -328,7 +330,6 @@ int main(int argc,char* argv[]) {
     /* release allocated memory */
     pthread_cond_destroy(&read);
     pthread_cond_destroy(&write);
-    pthread_mutex_destroy(&lockCreate);
     pthread_mutex_destroy(&state);
     pthread_mutex_destroy(&lockwhile);
     pthread_mutex_destroy(&lockVect);

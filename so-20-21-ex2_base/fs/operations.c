@@ -17,42 +17,38 @@ extern inode_t inode_table[INODE_TABLE_SIZE];
  * Input: 
  *  - state: defines if we will do a write or a read lock.
  *  - lock: the lock that will be locked.
- * 	- vetorlocks: a vector where are saved the inumbers of the inodes that have been locked.
+ * 	- locksVector: a vector where are saved the inumbers of the inodes that have been locked.
  *  - inumber: the inumber of the inode that will be locked.
- *  - counter: the counter that increases the vetorlocks index everytime a new lock is locked.
+ *  - counter: the counter that increases the locksVector index everytime a new lock is locked.
  */
 
-void closelocks(int state, pthread_rwlock_t *lock, int vetorlocks[], int inumber, int *counter){
+void closelocks(int state, pthread_rwlock_t *lock, int locksVector[], int inumber, int *counter){
 	if(state == 1){
-		int err = pthread_rwlock_wrlock(lock);
-		/*printf("vou fechar escrever%d\n",inumber);*/
-		if(err != 0){
-			printf("Error: Failed to close lock. %d \n", err);
+		if(pthread_rwlock_wrlock(lock) != 0){
+			printf("Error: Failed to close lock.\n");
 			exit(EXIT_FAILURE);
 		}
 	}
 	else if(state == 0){
-		int err = pthread_rwlock_rdlock(lock);
-		/*printf("vou fechar ler%d\n",inumber);*/
-		if(err != 0){
-			printf("Error: Failed to close lock. %d \n", err);
+		if(pthread_rwlock_rdlock(lock) != 0){
+			printf("Error: Failed to close lock.\n");
 			exit(EXIT_FAILURE);
 		}
 	}
-	vetorlocks[*counter] = inumber;
+	locksVector[*counter] = inumber;
 	*counter += 1;
 }
 
 /* Open locks 
  * Input: 
- *  - vetorlocks: a vector where are saved the inumbers of the inodes that have been locked.
- *  - counter: the counter that increases the vetorlocks index everytime a new lock is locked.
+ *  - locksVector: a vector where are saved the inumbers of the inodes that have been locked.
+ *  - counter: the counter that increases the locksVector index everytime a new lock is locked.
  */
 
-void openlocks(int vetorlocks[], int *counter){
+void openlocks(int locksVector[], int *counter){
 	int j = 0;
 	while(j < *counter){
-		if(pthread_rwlock_unlock(&inode_table[vetorlocks[j]].lock) != 0){
+		if(pthread_rwlock_unlock(&inode_table[locksVector[j]].lock) != 0){
 			printf("Error: Could not open lock\n");
 			exit(EXIT_FAILURE);
 		}
@@ -65,6 +61,9 @@ void openlocks(int vetorlocks[], int *counter){
  *  - inumber: the inumber of the inode that we will verify if is locked.
  *  - locksVector: the vector that contains the inumbers of the inodes that have been locked.
  *  - number of inodes that have been locked.
+ * Output:
+ *  - returns 1 if inode is locked.
+ *  - returns 0 if the inode isn't locked.
  */
 int isInVector(int inumber, int locksVector[], int *counter){
 	int i;
@@ -186,7 +185,7 @@ int lookup_sub_node(char *name, DirEntry *entries) {
  */
 int create(char *name, type nodeType){
 
-	int *vetorlocks = malloc(sizeof(int) * 50);
+	int *locksVector = malloc(sizeof(int) * 50);
     int *counter = malloc(sizeof(int));
 	*counter = 0;
 	int parent_inumber, child_inumber;
@@ -199,12 +198,12 @@ int create(char *name, type nodeType){
 	strcpy(name_copy, name);
 	split_parent_child_from_path(name_copy, &parent_name, &child_name);
 
-	parent_inumber = lookup(parent_name, CREATE, vetorlocks, counter);
+	parent_inumber = lookup(parent_name, CREATE, locksVector, counter);
 	
 	if (parent_inumber == FAIL) {
 		printf("failed to create %s, invalid parent dir %s\n",
 		        name, parent_name);
-		openlocks(vetorlocks, counter);
+		openlocks(locksVector, counter);
 		return FAIL;
 	}
 
@@ -214,14 +213,14 @@ int create(char *name, type nodeType){
 	if(pType != T_DIRECTORY) {
 		printf("failed to create %s, parent %s is not a dir\n",
 		        name, parent_name);
-		openlocks(vetorlocks, counter);
+		openlocks(locksVector, counter);
 		return FAIL;
 	}
 
 	if (lookup_sub_node(child_name, pdata.dirEntries) != FAIL) {
 		printf("failed to create %s, already exists in dir %s\n",
 		       child_name, parent_name);
-		openlocks(vetorlocks, counter);
+		openlocks(locksVector, counter);
 		return FAIL;
 	}
 	/* create node and add entry to folder that contains new node */
@@ -230,17 +229,17 @@ int create(char *name, type nodeType){
 	if (child_inumber == FAIL) {
 		printf("failed to create %s in  %s, couldn't allocate inode\n",
 		        child_name, parent_name);
-		openlocks(vetorlocks, counter);
+		openlocks(locksVector, counter);
 		return FAIL;
 	}
 
 	if (dir_add_entry(parent_inumber, child_inumber, child_name) == FAIL) {
 		printf("could not add entry %s in dir %s\n",
 		       child_name, parent_name);
-		openlocks(vetorlocks, counter);
+		openlocks(locksVector, counter);
 		return FAIL;
 	}
-	openlocks(vetorlocks, counter);
+	openlocks(locksVector, counter);
 	return SUCCESS;
 }
 
@@ -253,7 +252,7 @@ int create(char *name, type nodeType){
  */
 int delete(char *name){
 	
-	int *vetorlocks = malloc(sizeof(int) * 50);
+	int *locksVector = malloc(sizeof(int) * 50);
     int *counter = malloc(sizeof(int));
 	*counter = 0;
 	int parent_inumber, child_inumber;
@@ -265,12 +264,12 @@ int delete(char *name){
 
 	strcpy(name_copy, name);
 	split_parent_child_from_path(name_copy, &parent_name, &child_name);
-	parent_inumber = lookup(parent_name, DELETE, vetorlocks, counter);
+	parent_inumber = lookup(parent_name, DELETE, locksVector, counter);
 
 	if (parent_inumber == FAIL) {
 		printf("failed to delete %s, invalid parent dir %s\n",
 		        child_name, parent_name);
-		openlocks(vetorlocks, counter);
+		openlocks(locksVector, counter);
 		return FAIL;
 	}
 
@@ -279,7 +278,7 @@ int delete(char *name){
 	if(pType != T_DIRECTORY) {
 		printf("failed to delete %s, parent %s is not a dir\n",
 		        child_name, parent_name);
-		openlocks(vetorlocks, counter);
+		openlocks(locksVector, counter);
 		return FAIL;
 	}
 
@@ -289,18 +288,18 @@ int delete(char *name){
 	if (child_inumber == FAIL) {
 		printf("could not delete %s, does not exist in dir %s\n",
 		       name, parent_name);
-		openlocks(vetorlocks, counter);
+		openlocks(locksVector, counter);
 		return FAIL;
 	}
 
-	closelocks(WRITE, &inode_table[child_inumber].lock, vetorlocks, child_inumber, counter);
+	closelocks(WRITE, &inode_table[child_inumber].lock, locksVector, child_inumber, counter);
 
 	inode_get(child_inumber, &cType, &cdata);
 
 	if (cType == T_DIRECTORY && is_dir_empty(cdata.dirEntries) == FAIL) {
 		printf("could not delete %s: is a directory and not empty\n",
 		       name);
-		openlocks(vetorlocks, counter);
+		openlocks(locksVector, counter);
 		return FAIL;
 	}
 
@@ -308,24 +307,31 @@ int delete(char *name){
 	if (dir_reset_entry(parent_inumber, child_inumber) == FAIL) {
 		printf("failed to delete %s from dir %s\n",
 		       child_name, parent_name);
-		openlocks(vetorlocks, counter);
+		openlocks(locksVector, counter);
 		return FAIL;
 	}
 
 	if (inode_delete(child_inumber) == FAIL) {
 		printf("could not delete inode number %d from dir %s\n",
 		       child_inumber, parent_name);
-		openlocks(vetorlocks, counter);
+		openlocks(locksVector, counter);
 		return FAIL;
 	}
-	openlocks(vetorlocks, counter);
+	openlocks(locksVector, counter);
 	
 	return SUCCESS;
 }
 
+/*
+ * Moves a node given two paths.
+ * Input:
+ *  - name1: node path.
+ *  - name2: destiny path.
+ * Returns: SUCCESS or FAIL.
+ */
 int move(char *name1, char *name2){
 
-    int *vetorlocks = malloc(sizeof(int) * 50);
+    int *locksVector = malloc(sizeof(int) * 50);
     int *counter = malloc(sizeof(int));
     *counter = 0;
     int parent_inumber1, parent_inumber2, child_inumber1;
@@ -340,44 +346,44 @@ int move(char *name1, char *name2){
     split_parent_child_from_path(name_copy1, &parent_name1, &child_name1);
     split_parent_child_from_path(name_copy2, &parent_name2, &child_name2);
 
-    if (strcmp(parent_name1,parent_name2) < 0){;
+    if (strcmp(parent_name1,parent_name2) < 0){	/* Verify that node path is shorter than the destiny path */
         char *v,*b;
         v = strstr(parent_name2, name1);
 		b = strstr(parent_name2, parent_name1);
         if(v != NULL){
-			printf("failed to move %s, invalid operation.\n",name1);
+			printf("failed to move %s, invalid operation.\n", name1);
 			return FAIL;
         }
 		if(b != NULL){
-			parent_inumber1 = lookup(parent_name1, MOVE, vetorlocks, counter); 
-			parent_inumber2 = lookup(parent_name2, MOVE, vetorlocks, counter);/*-----------------------------------------*/
+			parent_inumber1 = lookup(parent_name1, MOVE, locksVector, counter); 
+			parent_inumber2 = lookup(parent_name2, MOVE, locksVector, counter);
 		}
         else{
-            parent_inumber1 = lookup(parent_name1, MOVE, vetorlocks, counter); 
-			parent_inumber2 = lookup(parent_name2, MOVE, vetorlocks, counter);
+            parent_inumber1 = lookup(parent_name1, MOVE, locksVector, counter); 
+			parent_inumber2 = lookup(parent_name2, MOVE, locksVector, counter);
         }
     }
     else if(strcmp(parent_name2,parent_name1) == 0){
-        parent_inumber1 = lookup(parent_name1, MOVE, vetorlocks, counter);
+        parent_inumber1 = lookup(parent_name1, MOVE, locksVector, counter);
         parent_inumber2 = parent_inumber1;
     }
-    else{
+    else{ /* In case of destiny path is shorter that the node path */
         char *v = malloc(sizeof(char)*MAX_FILE_NAME);
         v = strstr(parent_name1, parent_name2);
         if(v != NULL){
-            parent_inumber2 = lookup(parent_name2, MOVE, vetorlocks, counter);
-			parent_inumber1 = lookup(parent_name1, MOVE, vetorlocks, counter); /*----------------------------------*/
+            parent_inumber2 = lookup(parent_name2, MOVE, locksVector, counter);
+			parent_inumber1 = lookup(parent_name1, MOVE, locksVector, counter); 
         }
         else{
-            parent_inumber2 = lookup(parent_name2, MOVE, vetorlocks, counter);
-            parent_inumber1 = lookup(parent_name1, MOVE, vetorlocks, counter);
+            parent_inumber2 = lookup(parent_name2, MOVE, locksVector, counter);
+            parent_inumber1 = lookup(parent_name1, MOVE, locksVector, counter);
         }
     }
 
     if (parent_inumber1 == FAIL) {
         printf("failed to move %s, invalid parent dir %s\n",
                 child_name1, parent_name1);
-        openlocks(vetorlocks,counter);
+        openlocks(locksVector,counter);
         return FAIL;
     }
 
@@ -386,7 +392,7 @@ int move(char *name1, char *name2){
     if(pType != T_DIRECTORY) {
         printf("failed to move %s, parent %s is not a dir\n",
                 child_name1, parent_name1);
-        openlocks(vetorlocks,counter);
+        openlocks(locksVector,counter);
         return FAIL;
     }
 
@@ -395,7 +401,7 @@ int move(char *name1, char *name2){
     if (child_inumber1 == FAIL) {
         printf("could not move %s, does not exist in dir %s\n",
                child_name1, parent_name1);
-        openlocks(vetorlocks,counter);
+        openlocks(locksVector,counter);
         return FAIL;
     }
 
@@ -403,7 +409,7 @@ int move(char *name1, char *name2){
     if (parent_inumber2 == FAIL) {
         printf("failed to move %s, invalid parent dir %s\n",
                 child_name1, parent_name2);
-        openlocks(vetorlocks,counter);
+        openlocks(locksVector,counter);
         return FAIL;
     }
     inode_get(parent_inumber2, &pType, &pdata);
@@ -411,45 +417,48 @@ int move(char *name1, char *name2){
     if(pType != T_DIRECTORY) {
         printf("failed to move %s, parent %s is not a dir\n",
                 child_name1, parent_name2);
-        openlocks(vetorlocks,counter);
+        openlocks(locksVector,counter);
         return FAIL;
     }
 
     if (lookup_sub_node(child_name2, pdata.dirEntries) != FAIL) {
         printf("failed to move %s, already exists in dir %s\n",
                child_name2, parent_name2);
-        openlocks(vetorlocks,counter);
+        openlocks(locksVector,counter);
         return FAIL;
     }
 
     if (dir_reset_entry(parent_inumber1, child_inumber1) == FAIL) {
         printf("failed to delete %s from dir %s\n",
                child_name1, parent_name1);
-        openlocks(vetorlocks,counter);
+        openlocks(locksVector,counter);
         return FAIL;
     }
 
     if (dir_add_entry(parent_inumber2, child_inumber1, child_name2) == FAIL) {
         printf("could not add entry %s in dir %s\n",
                child_name2, parent_name2);
-        openlocks(vetorlocks,counter);
+        openlocks(locksVector,counter);
         return FAIL;
     }
 
-    openlocks(vetorlocks, counter);
+    openlocks(locksVector, counter);
     return SUCCESS;
 }
 
 /*
  * Lookup for a given path.
  * Input:
- *  - name: path of node
+ *  - name: path of node.
+ *  - typeo: type of operation.
+ *  - locksVector: a vector where are saved the inumbers of the inodes that have been locked.
+ *  - counter: the counter that increases the vetorlocks index everytime a new lock is locked.
  * Returns:
- *  inumber: identifier of the i-node, if found
- *     FAIL: otherwise
+ *  inumber: identifier of the i-node, if found.
+ *  FAIL: otherwise.
  */
 
-int lookup(char *name, int tipo, int vetorlocks[], int *counter) {
+int lookup(char *name, int tipo, int locksVector[], int *counter) {
 
 	char full_path[MAX_FILE_NAME];
 	char delim[] = "/";
@@ -465,12 +474,12 @@ int lookup(char *name, int tipo, int vetorlocks[], int *counter) {
 	union Data data;
 
 	char *path = strtok_r(full_path, delim, &saveptr);
-	if(!(isInVector(current_inumber, vetorlocks, counter))){
+	if(!(isInVector(current_inumber, locksVector, counter))){
 		if(path == NULL){
-			closelocks(WRITE, &inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
+			closelocks(WRITE, &inode_table[current_inumber].lock, locksVector, current_inumber, counter);
 		}
 		else{
-			closelocks(READ, &inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
+			closelocks(READ, &inode_table[current_inumber].lock, locksVector, current_inumber, counter);
 		}
 	}	
 
@@ -481,23 +490,23 @@ int lookup(char *name, int tipo, int vetorlocks[], int *counter) {
 
 	while (path != NULL && (current_inumber = lookup_sub_node(path, data.dirEntries)) != FAIL) {
 		path = strtok_r(NULL, delim, &saveptr);
-		if(!(isInVector(current_inumber, vetorlocks, counter))){
+		if(!(isInVector(current_inumber, locksVector, counter))){
 			if (path != NULL){
-				closelocks(READ,&inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
+				closelocks(READ,&inode_table[current_inumber].lock, locksVector, current_inumber, counter);
 			}
 			else if(path == NULL){
 				if(tipo == READ){
-					closelocks(READ,&inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
+					closelocks(READ,&inode_table[current_inumber].lock, locksVector, current_inumber, counter);
 				}	
 				else{
-					closelocks(WRITE,&inode_table[current_inumber].lock, vetorlocks, current_inumber, counter);
+					closelocks(WRITE,&inode_table[current_inumber].lock, locksVector, current_inumber, counter);
 				}
 			}
 		}
 		inode_get(current_inumber, &nType, &data);
 	}
 	if (tipo == READ){
-		openlocks(vetorlocks, counter);
+		openlocks(locksVector, counter);
 	}	
 	return current_inumber;
 }

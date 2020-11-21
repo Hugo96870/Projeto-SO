@@ -6,8 +6,6 @@
 #include <pthread.h>
 #include "../tecnicofs-api-constants.h"
 
-extern pthread_mutex_t lockCreate;
-
 inode_t inode_table[INODE_TABLE_SIZE];
 
 /*
@@ -48,16 +46,16 @@ void inode_table_destroy() {
 }
 
 /*
- * Tries to lock the inode identified by inumber
+ * Tries to lock the inode identified by inumber.
  * Input:
- *  - inumber: identifier of the i-node that will be locked or not
+ *  - inumber: identifier of the i-node that will be locked or not.
  * Returns:
- *  a: return value from pthread_rwlock_tryrwlock
+ *  - value: return value from pthread_rwlock_tryrwlock.
  */
 int tryLockFunction(int inumber){
-    int a;
-    a = pthread_rwlock_trywrlock(&inode_table[inumber].lock);
-    return a;
+    int value;
+    value = pthread_rwlock_trywrlock(&inode_table[inumber].lock);
+    return value;
 }
 
 
@@ -67,18 +65,17 @@ int tryLockFunction(int inumber){
  *  - nType: the type of the node (file or directory)
  * Returns:
  *  inumber: identifier of the new i-node, if successfully created
- *     FAIL: if an error occurs
- */
+ *  FAIL: if an error occurs
+ */ 
 int inode_create(type nType) {
     /* Used for testing synchronization speedup */
     insert_delay(DELAY);
-    //pthread_mutex_lock(&lockCreate);
     for (int inumber = 0; inumber < INODE_TABLE_SIZE; inumber++) {
-        int a = tryLockFunction(inumber);
-        if (a == 35 || a == 16){
+        int value = tryLockFunction(inumber);
+        if (value == 35 || value == 16){
             continue;
         }
-        else if(a==12 || a == 22){
+        else if(value == 12 || value == 22){
             printf("Error: Failed to close lock.\n");
             exit(EXIT_FAILURE);
         }
@@ -96,13 +93,17 @@ int inode_create(type nType) {
             else {
                 inode_table[inumber].data.fileContents = NULL;
             }
-            //pthread_mutex_unlock(&lockCreate);
-            pthread_rwlock_unlock(&inode_table[inumber].lock);
+            if (pthread_rwlock_unlock(&inode_table[inumber].lock) != 0){
+                printf("Failed to open lock.\n");
+                exit(EXIT_FAILURE);
+            }
             return inumber;
         }
-        pthread_rwlock_unlock(&inode_table[inumber].lock);
+        if (pthread_rwlock_unlock(&inode_table[inumber].lock) != 0){
+                printf("Failed to open lock.\n");
+                exit(EXIT_FAILURE);
+            }
     }
-    //pthread_mutex_unlock(&lockCreate);
     return FAIL;
 }
 
@@ -153,7 +154,6 @@ int inode_get(int inumber, type *nType, union Data *data) {
     if (data){
         *data = inode_table[inumber].data;
     }
-
     return SUCCESS;
 }
 
@@ -184,7 +184,6 @@ int dir_reset_entry(int inumber, int sub_inumber) {
         return FAIL;
     }
 
-    
     for (int i = 0; i < MAX_DIR_ENTRIES; i++) {
         if (inode_table[inumber].data.dirEntries[i].inumber == sub_inumber) {
             inode_table[inumber].data.dirEntries[i].inumber = FREE_INODE;
