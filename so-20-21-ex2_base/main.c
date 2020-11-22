@@ -10,25 +10,24 @@
 #include <time.h>
 #include <math.h>
 #include <pthread.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/un.h>
+#include <strings.h>
+#include <sys/uio.h>
+#include <unistd.h>
 #include "fs/operations.h"
 
-#define MAX_COMMANDS 10
+#define INDIM 30
+#define OUTDIM 512
 #define MAX_INPUT_SIZE 100
 
-pthread_mutex_t state;
-pthread_mutex_t lockwhile;
 pthread_mutex_t lockVect;
-pthread_cond_t write;
-pthread_cond_t read;
-
+/*
 struct timespec start, finish;
 double timeSpent;
-int count = 0;
-int readptr = 0;
-int writeptr = 0;
-
-char inputCommands[MAX_COMMANDS][MAX_INPUT_SIZE];
-int readState = 1; /* flag that indicates if there are commands to read */
+*/
 
 
 void errorParse(){
@@ -36,161 +35,45 @@ void errorParse(){
     exit(EXIT_FAILURE);
 }
 
-/* Process the input. Receives the input file and put the commands in inputCommads \
- * so they can be acessed by threads in a circular way.
- * Input:
- *  - arg: Input file where the commands to be processed are.
- */
-
-void* processInput(void* arg){
-    FILE *inputf = (FILE*)arg;
-    char line[MAX_INPUT_SIZE];
-
-    /* break loop with ^Z or ^D */
-    while (fgets(line,sizeof(line)/sizeof(char),inputf)) {
-
-        char token, type;
-        char name[MAX_INPUT_SIZE];
-        int numTokens = sscanf(line, "%c %s %c", &token, name, &type);
-
-        /* perform minimal validation */
-        if (numTokens < 1) {
-            continue;
-        }
-        if (pthread_mutex_lock(&lockVect) != 0){
-            printf("Error: Failed to close lock.\n");
-			exit(EXIT_FAILURE);
-        }
-        while(count == MAX_COMMANDS){
-            if (pthread_cond_wait(&write,&lockVect) != 0){
-                printf("Error: Failed to wait.\n");
-			    exit(EXIT_FAILURE);
-            }
-        }
-        switch (token) {
-            case 'c':
-                if(numTokens != 3)
-                    errorParse();
-                break;
-            
-            case 'l':
-                if(numTokens != 2)
-                    errorParse();
-                break;
-            
-            case 'd':
-                if(numTokens != 2)
-                    errorParse();       
-                break;
-            case 'm':
-                if(numTokens != 3)
-                    errorParse();
-                break;
-
-            case '#':
-                break;
-            
-            default: { /* error */
-                errorParse();
-            }
-        }
-        if(token != '#'){   /* The file line is a command to execute */
-            strcpy(inputCommands[writeptr], line);
-            writeptr++;
-            if(writeptr == MAX_COMMANDS){
-                writeptr = 0;
-            }
-            count++; 
-        }
-        if (pthread_cond_signal(&read) != 0){
-            printf("Error: Failed to signal.\n");
-            exit(EXIT_FAILURE);
-        }
-        
-        if (pthread_mutex_unlock(&lockVect) != 0){
-            printf("Error: Failed to open lock.\n");
-            exit(EXIT_FAILURE);
-        }
-    }
-    if (pthread_mutex_lock(&state) != 0){
-        printf("Error: Failed to close lock.\n");
-        exit(EXIT_FAILURE);
-    } 
-    readState = 0;  /* The flag turns 0 when there are no more commands to process from file */
-
-    if (pthread_cond_broadcast(&read) != 0){
-        printf("Error: Failed to broadcast.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    if (pthread_mutex_unlock(&state) != 0){
-        printf("Error: Failed to open lock.\n");
-        exit(EXIT_FAILURE);
-    }
-    return 0;
-}
-
-
 /* Apply the commands that where processed from the file to inputCommands in the previous \
  * function (processInput).
  */
-void* applyCommands(){
+void* applyCommands(void *arg){
     int *locksVector = malloc(sizeof(int) * 50);
     int *counter = malloc(sizeof(int));
+    int sockfd = (int*)arg;
 
-    if (pthread_mutex_lock(&lockwhile) != 0){
-        printf("Error: Failed to close lock.\n");
-        exit(EXIT_FAILURE);
-    }
-    
-    while(count > 0 || readState == 1){ /* The loop stops when there are no more commands to be processed and done */
-        if (pthread_mutex_unlock(&lockwhile) != 0){
-            printf("Error: Failed to open lock.\n");
-            exit(EXIT_FAILURE);
-        }
-        const char* command;
+    while(1){ /* The loop stops when there are no more commands to be processed and done */
+        struct sockaddr_un client_addr;
+        char in_buffer[INDIM], out_buffer[OUTDIM];
+        int c;
+        socklen_t addrlen;
+
         if (pthread_mutex_lock(&lockVect) != 0){
             printf("Error: Failed to close lock.\n");
 			exit(EXIT_FAILURE);
         }
-        while(count==0 && readState==1){ /* Waits until there is a command to be processed and done */
-            if (pthread_cond_wait(&read,&lockVect) != 0){
-                printf("Error: Failed to wait.\n");
-			    exit(EXIT_FAILURE);
-            }
-        }
-        command = inputCommands[readptr];
 
-        readptr++;
-        if(readptr == MAX_COMMANDS){
-            readptr = 0;
-        } 
-        count--;
+        addrlen = sizeof(struct sockaddr_un);
+        c = recvfrom(sockfd, in_buffer, sizeof(in_buffer)-1, 0, (struct sockaddr *)&client_addr, &addrlen);
+        if (c <= 0)
+            continue;
+        in_buffer[c]='\0';
+
+        printf("Recebeu mensagem de %s\n", client_addr.sun_path);
         
-        if (count < 0){
-            if (pthread_mutex_unlock(&lockVect) != 0){
-                printf("Error: Failed to open lock.\n");
-                exit(EXIT_FAILURE);
-            }
-            break;
-        }
-
-        if (pthread_cond_signal(&write) != 0){
-            printf("Error: Failed to signal.\n");
-			exit(EXIT_FAILURE);
-        }
         if (pthread_mutex_unlock(&lockVect) != 0){
             printf("Error: Failed to open lock.\n");
 			exit(EXIT_FAILURE);
         }
 
-        if(command == NULL){
+        if(in_buffer == NULL){
             continue;
         }
 
         char token;
         char name[MAX_INPUT_SIZE], type[MAX_INPUT_SIZE];
-        int numTokens = sscanf(command, "%c %s %s", &token, name, type);
+        int numTokens = sscanf(in_buffer, "%c %s %s", &token, name, type);
         if (numTokens < 2) {
             fprintf(stderr, "Error: invalid command in Queue\n");
             exit(EXIT_FAILURE);
@@ -198,14 +81,18 @@ void* applyCommands(){
         int searchResult;
         switch (token) {
             case 'c':
+                if(numTokens != 3)
+                    errorParse();
                 switch (type[0]) {
                     case 'f':
                         printf("Create file: %s\n", name);
                         create(name, T_FILE);
+                        sendto(sockfd, out_buffer, c+1, 0, (struct sockaddr *)&client_addr, addrlen);
                         break;
                     case 'd':
                         printf("Create directory: %s\n", name);
                         create(name, T_DIRECTORY);
+                        sendto(sockfd, out_buffer, c+1, 0, (struct sockaddr *)&client_addr, addrlen);
                         break;
                     default:
                         fprintf(stderr, "Error: invalid node type\n");
@@ -213,8 +100,11 @@ void* applyCommands(){
                 }
                 break;
             case 'l':
+                if(numTokens != 2)
+                    errorParse();       
                 *counter=0;
                 searchResult = lookup(name, 0, locksVector, counter);
+                sendto(sockfd, out_buffer, c+1, 0, (struct sockaddr *)&client_addr, addrlen);
                 if (searchResult >= 0){
                     printf("Search: %s found\n", name);
                 }
@@ -223,26 +113,25 @@ void* applyCommands(){
                 }
                 break;
             case 'm':
+                if(numTokens != 3)
+                    errorParse();       
                 printf("Move: %s %s\n", name, type);
                 move(name, type);
+                sendto(sockfd, out_buffer, c+1, 0, (struct sockaddr *)&client_addr, addrlen);
                 break;
             case 'd':
+                if(numTokens != 2)
+                    errorParse();
                 printf("Delete: %s\n", name);
                 delete(name);
+                c = sprintf(out_buffer, "Ola' %s, que tal vai isso?", in_buffer);
+                sendto(sockfd, out_buffer, c+1, 0, (struct sockaddr *)&client_addr, addrlen);
                 break;
             default: { /* error */
                 fprintf(stderr, "Error: command to apply\n");
                 exit(EXIT_FAILURE);
             }   
         }
-        if (pthread_mutex_lock(&lockwhile) != 0){
-            printf("Error: Failed to close lock.\n");
-            exit(EXIT_FAILURE);
-        }
-    }
-    if (pthread_mutex_unlock(&lockwhile) != 0){
-        printf("Error: Failed to open lock.\n");
-        exit(EXIT_FAILURE);
     }
     return 0;
 }
@@ -252,22 +141,17 @@ void* applyCommands(){
  *  - nrT: Number of threads to initialize.
  *  - inputf: Input file.
  */
-void startThreads(int nrT, FILE *inputf){
+void startThreads(int nrT, int *sockfd){
     int i;
-    pthread_t *tid = malloc(sizeof(pthread_t)*(nrT+1));
+    pthread_t *tid = malloc(sizeof(pthread_t)*nrT);
 
-    if ((pthread_create(&tid[0], 0, processInput, inputf) != 0)){ /*Initializes the thread that will process the commands.*/
-        printf("Cannot create thread.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    for(i = 1; i <= nrT; i++){ /* Initializes the threads that will apply the commands. */
-        if ((pthread_create(&tid[i], 0, applyCommands, NULL) != 0)){ 
+    for(i = 0; i < nrT; i++){ /* Initializes the threads that will apply the commands. */
+        if ((pthread_create(&tid[i], 0, applyCommands, *sockfd) != 0)){ 
             printf("Cannot create thread.\n");
             exit(EXIT_FAILURE);
         }
     }
-    for(i = 0;i <= nrT; i++){
+    for(i = 0;i < nrT; i++){
         if ((pthread_join(tid[i], NULL) != 0)){
             printf("Cannot join thread.\n");
             exit(EXIT_FAILURE);
@@ -276,62 +160,64 @@ void startThreads(int nrT, FILE *inputf){
     free(tid);
 }
 
+int createSocket(char* name){
+    int sockfd;
+    struct sockaddr_un server_addr;
+    socklen_t addrlen;
+
+    if ((sockfd = socket(AF_UNIX, SOCK_DGRAM, 0)) < 0) {
+        perror("server: can't open socket");
+        exit(EXIT_FAILURE);
+    }
+
+    addrlen = setSockAddrUn (name, &server_addr);
+    if (bind(sockfd, (struct sockaddr *) &server_addr, addrlen) < 0) {
+        perror("server: bind error");
+        exit(EXIT_FAILURE);
+    }
+    return sockfd;
+}
+
 int main(int argc, char* argv[]) {
-    FILE *inputf;
-    FILE *outputf;
 
     /* init mutex and cond variables */
     pthread_mutex_init(&lockVect,NULL);
-    pthread_mutex_init(&state,NULL);
-    pthread_mutex_init(&lockwhile,NULL);
-    pthread_cond_init(&read,NULL);
-    pthread_cond_init(&write,NULL);
 
     /* verify the input */
-    if(argc != 4 || atoi(argv[3]) < 1){
+    if(argc != 3 || atoi(argv[1]) < 1){
         printf("Error: Invalid input");
         exit(EXIT_FAILURE);
     }
 
     /* init filesystem */
     init_fs();
-    if ((inputf = fopen(argv[1], "r")) == NULL){
-        printf("Error: Cannot open file.\n");
-        exit(EXIT_FAILURE);
-    }
 
-    /* init clock */
+
+    int *sockfd = malloc(sizeof(int));
+    *sockfd = createSocket(argv[2]);
+
+    /* init clock 
     if(clock_gettime(CLOCK_REALTIME, &start)!=0){
         printf("Error: cant open clock\n");
         exit(EXIT_FAILURE);
-    }
+    }*/
 
     /* process input */
-    startThreads(atoi(argv[3]), inputf);
-    fclose(inputf);
-    if ((outputf = fopen(argv[2], "w")) == NULL ){
-        printf("Error: Cannot open file.\n");
-        exit(EXIT_FAILURE);
-    }
+    startThreads(atoi(argv[1]), sockfd);
 
-    /* finish clock */
+    /* finish clock 
     if(clock_gettime(CLOCK_REALTIME, &finish)!=0){
         printf("Error: Cant close clock\n");
         exit(EXIT_FAILURE);
     }
     timeSpent = (finish.tv_sec - start.tv_sec);
     timeSpent += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf("TecnicoFS completed in %.4f seconds.\n", timeSpent);
+    printf("TecnicoFS completed in %.4f seconds.\n", timeSpent);*/
     
-    /* print tree */
-    print_tecnicofs_tree(outputf);
-    fclose(outputf);
+    /* print tree 
+    print_tecnicofs_tree(outputf);*/
 
     /* release allocated memory */
-    pthread_cond_destroy(&read);
-    pthread_cond_destroy(&write);
-    pthread_mutex_destroy(&state);
-    pthread_mutex_destroy(&lockwhile);
     pthread_mutex_destroy(&lockVect);
 
     destroy_fs();

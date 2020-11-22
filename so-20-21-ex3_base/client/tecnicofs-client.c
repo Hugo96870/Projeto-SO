@@ -3,6 +3,8 @@
 #include "tecnicofs-client-api.h"
 #include "../tecnicofs-api-constants.h"
 
+#define MAX_INPUT_SIZE 100
+
 FILE* inputFile;
 char* serverName;
 
@@ -118,8 +120,6 @@ int main(int argc, char* argv[]) {
       fprintf(stderr, "Unable to mount socket: %s\n", serverName);
       exit(EXIT_FAILURE);
     }
-
-    
 
     processInput();
 
