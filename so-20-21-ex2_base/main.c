@@ -23,7 +23,6 @@
 #define OUTDIM 512
 #define MAX_INPUT_SIZE 100
 
-pthread_mutex_t lockVect;
 /*
 struct timespec start, finish;
 double timeSpent;
@@ -41,31 +40,21 @@ void errorParse(){
 void* applyCommands(void *arg){
     int *locksVector = malloc(sizeof(int) * 50);
     int *counter = malloc(sizeof(int));
-    int sockfd = (int*)arg;
+    int *sockfd = (int*)arg;
 
     while(1){ /* The loop stops when there are no more commands to be processed and done */
         struct sockaddr_un client_addr;
-        char in_buffer[INDIM], out_buffer[OUTDIM];
+        char in_buffer[MAX_INPUT_SIZE], out_buffer[2];
         int c;
         socklen_t addrlen;
 
-        if (pthread_mutex_lock(&lockVect) != 0){
-            printf("Error: Failed to close lock.\n");
-			exit(EXIT_FAILURE);
-        }
-
         addrlen = sizeof(struct sockaddr_un);
-        c = recvfrom(sockfd, in_buffer, sizeof(in_buffer)-1, 0, (struct sockaddr *)&client_addr, &addrlen);
+        c = recvfrom(*sockfd, in_buffer, sizeof(in_buffer)-1, 0, (struct sockaddr *)&client_addr, &addrlen);
         if (c <= 0)
             continue;
         in_buffer[c]='\0';
 
         printf("Recebeu mensagem de %s\n", client_addr.sun_path);
-        
-        if (pthread_mutex_unlock(&lockVect) != 0){
-            printf("Error: Failed to open lock.\n");
-			exit(EXIT_FAILURE);
-        }
 
         if(in_buffer == NULL){
             continue;
@@ -77,7 +66,7 @@ void* applyCommands(void *arg){
         if (numTokens < 2) {
             fprintf(stderr, "Error: invalid command in Queue\n");
             exit(EXIT_FAILURE);
-        }
+        } 
         int searchResult;
         switch (token) {
             case 'c':
@@ -86,13 +75,17 @@ void* applyCommands(void *arg){
                 switch (type[0]) {
                     case 'f':
                         printf("Create file: %s\n", name);
-                        create(name, T_FILE);
-                        sendto(sockfd, out_buffer, c+1, 0, (struct sockaddr *)&client_addr, addrlen);
+                        c = create(name, T_FILE);
+                        out_buffer[0] = c - '0';
+                        out_buffer[1] = '\0';
+                        sendto(*sockfd, out_buffer, 2, 0, (struct sockaddr *)&client_addr, addrlen);
                         break;
                     case 'd':
                         printf("Create directory: %s\n", name);
-                        create(name, T_DIRECTORY);
-                        sendto(sockfd, out_buffer, c+1, 0, (struct sockaddr *)&client_addr, addrlen);
+                        c = create(name, T_DIRECTORY);
+                        out_buffer[0] = c - '0';
+                        out_buffer[1] = '\0';
+                        sendto(*sockfd, out_buffer, 2, 0, (struct sockaddr *)&client_addr, addrlen);
                         break;
                     default:
                         fprintf(stderr, "Error: invalid node type\n");
@@ -104,7 +97,9 @@ void* applyCommands(void *arg){
                     errorParse();       
                 *counter=0;
                 searchResult = lookup(name, 0, locksVector, counter);
-                sendto(sockfd, out_buffer, c+1, 0, (struct sockaddr *)&client_addr, addrlen);
+                out_buffer[0] = searchResult - '0';
+                out_buffer[1] = '\0';
+                sendto(*sockfd, out_buffer, 2, 0, (struct sockaddr *)&client_addr, addrlen);
                 if (searchResult >= 0){
                     printf("Search: %s found\n", name);
                 }
@@ -116,16 +111,19 @@ void* applyCommands(void *arg){
                 if(numTokens != 3)
                     errorParse();       
                 printf("Move: %s %s\n", name, type);
-                move(name, type);
-                sendto(sockfd, out_buffer, c+1, 0, (struct sockaddr *)&client_addr, addrlen);
+                c = move(name, type);
+                out_buffer[0] = c - '0';
+                out_buffer[1] = '\0';
+                sendto(*sockfd, out_buffer, 2, 0, (struct sockaddr *)&client_addr, addrlen);
                 break;
             case 'd':
                 if(numTokens != 2)
                     errorParse();
                 printf("Delete: %s\n", name);
-                delete(name);
-                c = sprintf(out_buffer, "Ola' %s, que tal vai isso?", in_buffer);
-                sendto(sockfd, out_buffer, c+1, 0, (struct sockaddr *)&client_addr, addrlen);
+                c = delete(name);
+                out_buffer[0] = c - '0';
+                out_buffer[1] = '\0';
+                sendto(*sockfd, out_buffer, 2, 0, (struct sockaddr *)&client_addr, addrlen);
                 break;
             default: { /* error */
                 fprintf(stderr, "Error: command to apply\n");
@@ -146,7 +144,7 @@ void startThreads(int nrT, int *sockfd){
     pthread_t *tid = malloc(sizeof(pthread_t)*nrT);
 
     for(i = 0; i < nrT; i++){ /* Initializes the threads that will apply the commands. */
-        if ((pthread_create(&tid[i], 0, applyCommands, *sockfd) != 0)){ 
+        if ((pthread_create(&tid[i], 0, applyCommands, sockfd) != 0)){ 
             printf("Cannot create thread.\n");
             exit(EXIT_FAILURE);
         }
@@ -160,6 +158,19 @@ void startThreads(int nrT, int *sockfd){
     free(tid);
 }
 
+
+int setSockAddrUn(char *path, struct sockaddr_un *addr) {
+
+  if (addr == NULL)
+    return 0;
+
+  bzero((char *)addr, sizeof(struct sockaddr_un));
+  addr->sun_family = AF_UNIX;
+  strcpy(addr->sun_path, path);
+
+  return SUN_LEN(addr);
+}
+
 int createSocket(char* name){
     int sockfd;
     struct sockaddr_un server_addr;
@@ -169,6 +180,8 @@ int createSocket(char* name){
         perror("server: can't open socket");
         exit(EXIT_FAILURE);
     }
+
+    unlink(name);
 
     addrlen = setSockAddrUn (name, &server_addr);
     if (bind(sockfd, (struct sockaddr *) &server_addr, addrlen) < 0) {
@@ -180,8 +193,6 @@ int createSocket(char* name){
 
 int main(int argc, char* argv[]) {
 
-    /* init mutex and cond variables */
-    pthread_mutex_init(&lockVect,NULL);
 
     /* verify the input */
     if(argc != 3 || atoi(argv[1]) < 1){
@@ -218,8 +229,7 @@ int main(int argc, char* argv[]) {
     print_tecnicofs_tree(outputf);*/
 
     /* release allocated memory */
-    pthread_mutex_destroy(&lockVect);
-
+    free(sockfd);
     destroy_fs();
     exit(EXIT_SUCCESS);
 }
