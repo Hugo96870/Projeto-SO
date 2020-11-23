@@ -15,7 +15,7 @@
 int sockfd;
 socklen_t servlen, clilen;
 struct sockaddr_un serv_addr, client_addr;
-void *buffer;
+char buffer[MAX_INPUT_SIZE];
 
 int setSockAddrUn(char *path, struct sockaddr_un *addr) {
 
@@ -42,7 +42,7 @@ int tfsCreate(char *filename, char nodeType) {
   }
 
   c[0] = 'c';
-  c[1] = ' ';
+  c[1] = ' '; 
   for(i = 2; i < j+2; i++){ 
     c[i]=filename[counter];
     counter++;
@@ -52,19 +52,23 @@ int tfsCreate(char *filename, char nodeType) {
   c[counter+3] = nodeType;
   c[counter+4] = '\0';
 
-  if (sendto(sockfd, c, strlen(c), 0, (struct sockaddr *) &serv_addr, servlen) < 0) {
+  if (sendto(sockfd, c, strlen(c)+1, 0, (struct sockaddr *) &serv_addr, servlen) < 0) {
     perror("client: sendto error");
     exit(EXIT_FAILURE);
   } 
-  if (recvfrom(sockfd, buffer, sizeof(buffer), 0, (struct sockaddr *) &serv_addr, &servlen) < 0) {
+
+  printf("Vou receber\n");
+  if (recvfrom(sockfd, buffer, sizeof(buffer), 0,(struct sockaddr *) &serv_addr, &servlen) < 0) {
     perror("client: recvfrom error");
     exit(EXIT_FAILURE);
-  }
+  } 
 
-  char *returnValue = (char*)buffer;
-  if(atoi(returnValue) < 0)
+  printf("recebi\n");
+
+  const char *a="2";
+  if(atoi(a) < 0)
     exit(EXIT_FAILURE);
-  else
+  else 
     exit(EXIT_SUCCESS);
   
   return 0;

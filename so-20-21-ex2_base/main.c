@@ -44,7 +44,7 @@ void* applyCommands(void *arg){
 
     while(1){ /* The loop stops when there are no more commands to be processed and done */
         struct sockaddr_un client_addr;
-        char in_buffer[MAX_INPUT_SIZE], out_buffer[2];
+        char in_buffer[MAX_INPUT_SIZE], out_buffer[MAX_INPUT_SIZE];
         int c;
         socklen_t addrlen;
 
@@ -78,7 +78,9 @@ void* applyCommands(void *arg){
                         c = create(name, T_FILE);
                         out_buffer[0] = c - '0';
                         out_buffer[1] = '\0';
-                        sendto(*sockfd, out_buffer, 2, 0, (struct sockaddr *)&client_addr, addrlen);
+                        printf("Server:vou enviar %s\n",out_buffer);
+                        sendto(*sockfd, out_buffer, c+1, 0, (struct sockaddr *)&client_addr, addrlen);
+                        printf("enviei\n");
                         break;
                     case 'd':
                         printf("Create directory: %s\n", name);
