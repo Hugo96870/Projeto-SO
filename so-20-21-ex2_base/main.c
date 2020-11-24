@@ -89,11 +89,9 @@ void* applyCommands(){
                     case 'f':
                         printf("Create file: %s\n", name);
                         c = create(name, T_FILE);
-                        out_buffer[0] = c - '0';
-                        out_buffer[1] = '\0';
+                        sprintf(out_buffer,"%d",c);
                         printf("Server: %s \n", client_addr.sun_path);
-                        int err = sendto(sockfd, out_buffer, 2, 0, (struct sockaddr *)&client_addr, addrlen);
-                        if(err < 0){
+                        if(sendto(sockfd, out_buffer, sizeof(out_buffer), 0, (struct sockaddr *)&client_addr, addrlen) < 0){
                             printf("Erro: %d\n",errno);
                         }
                         printf("enviei\n");
@@ -101,9 +99,11 @@ void* applyCommands(){
                     case 'd':
                         printf("Create directory: %s\n", name);
                         c = create(name, T_DIRECTORY);
-                        out_buffer[0] = c - '0';
-                        out_buffer[1] = '\0';
-                        sendto(sockfd, out_buffer, 2, 0, (struct sockaddr *)&client_addr, addrlen);
+                        sprintf(out_buffer,"%d",c);
+                        printf("Server: %s \n", client_addr.sun_path);
+                        if(sendto(sockfd, out_buffer, sizeof(out_buffer), 0, (struct sockaddr *)&client_addr, addrlen) < 0){
+                            printf("Erro: %d\n",errno);
+                        }
                         break;
                     default:
                         fprintf(stderr, "Error: invalid node type\n");
@@ -115,9 +115,11 @@ void* applyCommands(){
                     errorParse();       
                 *counter=0;
                 searchResult = lookup(name, 0, locksVector, counter);
-                out_buffer[0] = searchResult - '0';
-                out_buffer[1] = '\0';
-                sendto(sockfd, out_buffer, 2, 0, (struct sockaddr *)&client_addr, addrlen);
+                sprintf(out_buffer,"%d",searchResult);
+                printf("Server: %s \n", client_addr.sun_path);
+                if(sendto(sockfd, out_buffer, sizeof(out_buffer), 0, (struct sockaddr *)&client_addr, addrlen) < 0){
+                    printf("Erro: %d\n",errno);
+                }
                 if (searchResult >= 0){
                     printf("Search: %s found\n", name);
                 }
@@ -130,18 +132,22 @@ void* applyCommands(){
                     errorParse();       
                 printf("Move: %s %s\n", name, type);
                 c = move(name, type);
-                out_buffer[0] = c - '0';
-                out_buffer[1] = '\0';
-                sendto(sockfd, out_buffer, 2, 0, (struct sockaddr *)&client_addr, addrlen);
+                sprintf(out_buffer,"%d",c);
+                printf("Server: %s \n", client_addr.sun_path);
+                if(sendto(sockfd, out_buffer, sizeof(out_buffer), 0, (struct sockaddr *)&client_addr, addrlen) < 0){
+                    printf("Erro: %d\n",errno);
+                }
                 break;
             case 'd':
                 if(numTokens != 2)
                     errorParse();
                 printf("Delete: %s\n", name);
                 c = delete(name);
-                out_buffer[0] = c - '0';
-                out_buffer[1] = '\0';
-                sendto(sockfd, out_buffer, 2, 0, (struct sockaddr *)&client_addr, addrlen);
+                sprintf(out_buffer,"%d",c);
+                printf("Server: %s \n", client_addr.sun_path);
+                if(sendto(sockfd, out_buffer, sizeof(out_buffer), 0, (struct sockaddr *)&client_addr, addrlen) < 0){
+                    printf("Erro: %d\n",errno);
+                }
                 break;
             default: { /* error */
                 fprintf(stderr, "Error: command to apply\n");

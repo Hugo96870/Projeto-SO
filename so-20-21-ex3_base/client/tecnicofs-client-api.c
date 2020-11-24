@@ -48,10 +48,8 @@ int tfsCreate(char *filename, char nodeType) {
   } 
 
   printf("recebi\n");
-
-  const char *a = buffer;
   
-  if(atoi(a) < 0)
+  if(atoi(buffer) < 0)
     exit(EXIT_FAILURE);
   else 
     exit(EXIT_SUCCESS);
