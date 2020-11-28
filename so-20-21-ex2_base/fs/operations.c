@@ -176,6 +176,20 @@ int lookup_sub_node(char *name, DirEntry *entries) {
 	return FAIL;
 }
 
+int PrintToFile(char *file){
+
+    FILE *outputf;
+        if ((outputf = fopen(file,"w")) == NULL){
+    printf("Error: Cannot open file.\n");
+    return -1;
+    }
+
+    print_tecnicofs_tree(outputf);
+    fclose(outputf);
+
+    return 0;
+}
+
 /*
  * Creates a new node given a path.
  * Input:

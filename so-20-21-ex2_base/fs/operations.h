@@ -11,5 +11,6 @@ int move(char *name1, char *name2);
 int delete(char *name);
 int lookup(char *name, int nr, int vetorlocks[], int *counter);
 void print_tecnicofs_tree(FILE *fp);
+int PrintToFile(char *file);
 
 #endif /* FS_H */

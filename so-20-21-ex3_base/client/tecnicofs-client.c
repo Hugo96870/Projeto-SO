@@ -82,6 +82,15 @@ void *processInput() {
                 else
                     printf("Search: %s not found\n", arg1);
                 break;
+            case 'p':
+                if (numTokens != 2)
+                    errorParse();
+                res = tfsPrint(arg1);
+                if(res >= 0)
+                    printf("PrintToFIle: %s done\n",arg1);
+                else
+                    printf("PrintToFile: %s failed\n",arg1);
+                break;
             case 'd':
                 if(numTokens != 2)
                     errorParse();

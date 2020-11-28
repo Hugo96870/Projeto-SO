@@ -24,7 +24,13 @@
 #define OUTDIM 512
 #define MAX_INPUT_SIZE 100
 
+pthread_mutex_t lockPrint = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t print = PTHREAD_COND_INITIALIZER;
+pthread_cond_t notPrint = PTHREAD_COND_INITIALIZER;
+
 int sockfd;
+int flag = 0;
+int flagPrint = 0;
 /*
 struct timespec start, finish;
 double timeSpent;
@@ -47,6 +53,7 @@ void errorParse(){
     exit(EXIT_FAILURE);
 }
 
+
 /* Apply the commands that where processed from the file to inputCommands in the previous \
  * function (processInput).
  */
@@ -67,7 +74,7 @@ void* applyCommands(){
             continue;
         in_buffer[c]='\0';
 
-        printf("Recebeu mensagem de %s\n", client_addr.sun_path);
+        printf("Recieved meesage from %s\n", client_addr.sun_path);
 
         if(in_buffer == NULL){
             continue;
@@ -80,7 +87,21 @@ void* applyCommands(){
             fprintf(stderr, "Error: invalid command in Queue\n");
             exit(EXIT_FAILURE);
         } 
+
+        pthread_mutex_lock(&lockPrint);
+
+        if(token != 'p' && flagPrint == 1){
+            pthread_cond_wait(&notPrint,&lockPrint);
+            pthread_mutex_unlock(&lockPrint);
+        }
+        else{
+            pthread_mutex_unlock(&lockPrint);
+        }
+        if(token != 'p')
+            flag+=1;
+
         int searchResult;
+
         switch (token) {
             case 'c':
                 if(numTokens != 3)
@@ -90,20 +111,21 @@ void* applyCommands(){
                         printf("Create file: %s\n", name);
                         c = create(name, T_FILE);
                         sprintf(out_buffer,"%d",c);
-                        printf("Server: %s \n", client_addr.sun_path);
                         if(sendto(sockfd, out_buffer, sizeof(out_buffer), 0, (struct sockaddr *)&client_addr, addrlen) < 0){
                             printf("Erro: %d\n",errno);
                         }
-                        printf("enviei\n");
+                        flag-=1;
+                        pthread_cond_signal(&print);
                         break;
                     case 'd':
                         printf("Create directory: %s\n", name);
                         c = create(name, T_DIRECTORY);
                         sprintf(out_buffer,"%d",c);
-                        printf("Server: %s \n", client_addr.sun_path);
                         if(sendto(sockfd, out_buffer, sizeof(out_buffer), 0, (struct sockaddr *)&client_addr, addrlen) < 0){
                             printf("Erro: %d\n",errno);
                         }
+                        flag-=1;
+                        pthread_cond_signal(&print);
                         break;
                     default:
                         fprintf(stderr, "Error: invalid node type\n");
@@ -116,7 +138,6 @@ void* applyCommands(){
                 *counter=0;
                 searchResult = lookup(name, 0, locksVector, counter);
                 sprintf(out_buffer,"%d",searchResult);
-                printf("Server: %s \n", client_addr.sun_path);
                 if(sendto(sockfd, out_buffer, sizeof(out_buffer), 0, (struct sockaddr *)&client_addr, addrlen) < 0){
                     printf("Erro: %d\n",errno);
                 }
@@ -126,6 +147,8 @@ void* applyCommands(){
                 else{
                     printf("Search: %s not found\n", name);
                 }
+                flag-=1;
+                pthread_cond_signal(&print);
                 break;
             case 'm':
                 if(numTokens != 3)
@@ -133,10 +156,27 @@ void* applyCommands(){
                 printf("Move: %s %s\n", name, type);
                 c = move(name, type);
                 sprintf(out_buffer,"%d",c);
-                printf("Server: %s \n", client_addr.sun_path);
                 if(sendto(sockfd, out_buffer, sizeof(out_buffer), 0, (struct sockaddr *)&client_addr, addrlen) < 0){
                     printf("Erro: %d\n",errno);
                 }
+                flag-=1;
+                pthread_cond_signal(&print);
+                break;
+            case 'p':
+                flagPrint = 1;
+                while(flag > 0)
+                    pthread_cond_wait(&print, &lockPrint);
+                if(numTokens != 2)
+                    errorParse();
+                printf("PrintToFile: %s\n",name);
+                c = PrintToFile(name);
+                sprintf(out_buffer,"%d",c);
+                if(sendto(sockfd, out_buffer, sizeof(out_buffer), 0, (struct sockaddr *)&client_addr, addrlen) < 0){
+                    printf("Erro: %d\n",errno);
+                }
+                flagPrint = 0;
+                pthread_cond_broadcast(&notPrint);
+                pthread_mutex_unlock(&lockPrint);
                 break;
             case 'd':
                 if(numTokens != 2)
@@ -144,10 +184,11 @@ void* applyCommands(){
                 printf("Delete: %s\n", name);
                 c = delete(name);
                 sprintf(out_buffer,"%d",c);
-                printf("Server: %s \n", client_addr.sun_path);
                 if(sendto(sockfd, out_buffer, sizeof(out_buffer), 0, (struct sockaddr *)&client_addr, addrlen) < 0){
                     printf("Erro: %d\n",errno);
                 }
+                flag-=1;
+                pthread_cond_signal(&print);
                 break;
             default: { /* error */
                 fprintf(stderr, "Error: command to apply\n");
@@ -239,6 +280,6 @@ int main(int argc, char* argv[]) {
     print_tecnicofs_tree(outputf);*/
 
     /* release allocated memory */
-    destroy_fs();
+    /*destroy_fs();*/
     exit(EXIT_SUCCESS);
 }
