@@ -16,6 +16,7 @@ int sockfd;
 socklen_t servlen, clilen;
 struct sockaddr_un serv_addr, client_addr;
 char buffer[MAX_INPUT_SIZE];
+char nameSocket[MAX_INPUT_SIZE];
 
 int setSockAddrUn(char *path, struct sockaddr_un *addr) {
 
@@ -161,9 +162,14 @@ int tfsMount(char * sockPath) {
     exit(EXIT_FAILURE);
   }
 
-  unlink("/tmp/socket");
+  int pid = getpid();
+  pid = pid/10;
 
-  clilen = setSockAddrUn ("/tmp/socket", &client_addr);
+  sprintf(nameSocket,"/tmp/socket%d", pid);
+
+  unlink(nameSocket);
+
+  clilen = setSockAddrUn (nameSocket, &client_addr);
   if(bind(sockfd, (struct sockaddr *) &client_addr, clilen) < 0){
     perror("Client: bind error");
     exit(EXIT_FAILURE);
@@ -175,5 +181,9 @@ int tfsMount(char * sockPath) {
 }
 
 int tfsUnmount() {
-  return -1;
+
+  close(sockfd);
+  unlink(nameSocket);
+
+  return 0;
 }
