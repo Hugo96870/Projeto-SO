@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <pthread.h>
+#include <errno.h>
 #include <unistd.h>
 
 #define MOVE 3
@@ -26,13 +27,13 @@ extern inode_t inode_table[INODE_TABLE_SIZE];
 void closelocks(int state, pthread_rwlock_t *lock, int locksVector[], int inumber, int *counter){
 	if(state == 1){
 		if(pthread_rwlock_wrlock(lock) != 0){
-			printf("Error: Failed to close lock.\n");
+			printf("Error: Failed to close lock. %d\n", errno);
 			exit(EXIT_FAILURE);
 		}
 	}
 	else if(state == 0){
 		if(pthread_rwlock_rdlock(lock) != 0){
-			printf("Error: Failed to close lock.\n");
+			printf("Error: Failed to close lock. %d\n", errno);
 			exit(EXIT_FAILURE);
 		}
 	}
@@ -50,7 +51,7 @@ void openlocks(int locksVector[], int *counter){
 	int j = 0;
 	while(j < *counter){
 		if(pthread_rwlock_unlock(&inode_table[locksVector[j]].lock) != 0){
-			printf("Error: Could not open lock\n");
+			printf("Error: Could not open lock. %d\n", errno);
 			exit(EXIT_FAILURE);
 		}
 		j += 1;
@@ -177,6 +178,13 @@ int lookup_sub_node(char *name, DirEntry *entries) {
 	return FAIL;
 }
 
+
+/*
+ * Prints filesystem to the output file.
+ * Input:
+ *  - file: output file name
+ * Returns: SUCCESS or FAIL
+ */
 int PrintToFile(char *file){
 
 	int locksVector[ONE];
@@ -188,7 +196,7 @@ int PrintToFile(char *file){
     FILE *outputf;
     if ((outputf = fopen(file,"w")) == NULL){
     	printf("Error: Cannot open file.\n");
-    	return -1;
+    	return FAIL;
     }
 
     print_tecnicofs_tree(outputf);
@@ -196,7 +204,7 @@ int PrintToFile(char *file){
 
 	openlocks(locksVector, counter);
 
-    return 0;
+    return SUCCESS;
 }
 
 /*

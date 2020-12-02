@@ -11,6 +11,9 @@
 #include <sys/stat.h>
 
 #define MAX_INPUT_SIZE 100
+#define FAIL 1
+#define SUCCESS 0
+#define ERROR -1
 
 int sockfd;
 socklen_t servlen, clilen;
@@ -30,6 +33,13 @@ int setSockAddrUn(char *path, struct sockaddr_un *addr) {
   return SUN_LEN(addr);
 }
 
+/*
+ * Sends create command to server and receives a message
+ * Input:
+ *  - filename: path of to new file or directory.
+ *  - nodeType: indentifies if is a file or directory.
+ * Returns: SUCCESS OR FAIL
+ */
 int tfsCreate(char *filename, char nodeType) {
 
   char c[MAX_INPUT_SIZE];
@@ -38,23 +48,29 @@ int tfsCreate(char *filename, char nodeType) {
   size = sprintf(c,"c %s %c",filename, nodeType);
 
   if (sendto(sockfd, c, size, 0, (struct sockaddr *) &serv_addr, servlen) < 0) {
-    perror("client: sendto error");
+    perror("client: sendto error\n");
     exit(EXIT_FAILURE);
   } 
 
   if (recvfrom(sockfd, buffer, sizeof(buffer), 0,(struct sockaddr *) &serv_addr, &servlen) < 0) {
-    perror("client: recvfrom error");
+    perror("client: recvfrom error\n");
     exit(EXIT_FAILURE);
   }
 
   if(atoi(buffer) < 0)
-    return 1;
+    return FAIL;
   else
-    return 0;
+    return SUCCESS;
   
   exit(EXIT_FAILURE);
 }
 
+/*
+ * Sends delete command to server and receives a message
+ * Input:
+ *  - filename: path to the file or directory.
+ * Returns: SUCCESS OR ERROR
+ */
 int tfsDelete(char *path) {
 
   char c[MAX_INPUT_SIZE];
@@ -73,13 +89,20 @@ int tfsDelete(char *path) {
   }
 
   if(atoi(buffer) < 0)
-    return -1;
+    return ERROR;
   else
-    return 0;
+    return SUCCESS;
   
   exit(EXIT_FAILURE);
 }
 
+/*
+ * Sends move command to server and receives a message
+ * Input:
+ *  - from: path to the file or directory to be moved.
+ *  - to: destiny path.
+ * Returns: SUCCESS OR FAIL
+ */
 int tfsMove(char *from, char *to) {
 
   char c[MAX_INPUT_SIZE];
@@ -98,13 +121,19 @@ int tfsMove(char *from, char *to) {
   }
 
   if(atoi(buffer) < 0)
-    return 1;
+    return FAIL;
   else
-    return 0;
+    return SUCCESS;
   
   exit(EXIT_FAILURE);
 }
 
+/*
+ * Sends lookup command to server and receives a message
+ * Input:
+ *  - path: path to the file or directory to be searched.
+ * Returns: SUCCESS OR ERROR
+ */
 int tfsLookup(char *path) {
 
   char c[MAX_INPUT_SIZE];
@@ -123,13 +152,19 @@ int tfsLookup(char *path) {
   } 
 
   if(atoi(buffer) < 0)
-    return -1;
+    return ERROR;
   else
-    return 0;
+    return SUCCESS;
   
   exit(EXIT_FAILURE);
 }
 
+/*
+ * Sends print command to server and receives a message
+ * Input:
+ *  - file: output file name.
+ * Returns: SUCCESS OR ERROR
+ */
 int tfsPrint(char *file){
 
   char c[MAX_INPUT_SIZE];
@@ -148,13 +183,19 @@ int tfsPrint(char *file){
   }
 
   if(atoi(buffer) < 0)
-    return -1;
+    return ERROR;
   else
-    return 0;
+    return SUCCESS;
 
   exit(EXIT_FAILURE);
 }
 
+/*
+ * Creates socket and binds with it
+ * Input:
+ *  - sockPath: path to the server socket.
+ * Returns: SUCCESS OR FAIL
+ */
 int tfsMount(char * sockPath) {
 
   if ((sockfd = socket(AF_UNIX, SOCK_DGRAM, 0) ) < 0) {
@@ -177,13 +218,17 @@ int tfsMount(char * sockPath) {
 
   servlen = setSockAddrUn(sockPath, &serv_addr);
 
-  return 0;
+  return SUCCESS;
 }
 
+/*
+ * Closes socket
+ * Returns: SUCCESS
+ */
 int tfsUnmount() {
 
   close(sockfd);
   unlink(nameSocket);
 
-  return 0;
+  return SUCCESS;
 }

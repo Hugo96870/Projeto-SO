@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include "state.h"
 #include <pthread.h>
+#include <errno.h>
 #include "../tecnicofs-api-constants.h"
 
 inode_t inode_table[INODE_TABLE_SIZE];
@@ -24,7 +25,10 @@ void inode_table_init() {
         inode_table[i].nodeType = T_NONE;
         inode_table[i].data.dirEntries = NULL;
         inode_table[i].data.fileContents = NULL;
-        pthread_rwlock_init(&inode_table[i].lock, NULL);
+        if (pthread_rwlock_init(&inode_table[i].lock, NULL) != 0){
+            printf("Error: Could not init lock. %d\n", errno);
+			exit(EXIT_FAILURE);
+        }
     }
 }
 
@@ -39,7 +43,10 @@ void inode_table_destroy() {
             /* just release one of them */
             if (inode_table[i].data.dirEntries){
                 free(inode_table[i].data.dirEntries);
-                pthread_rwlock_destroy(&inode_table[i].lock);
+                if (pthread_rwlock_destroy(&inode_table[i].lock) != 0){
+                    printf("Error: Could not destroy lock. %d\n", errno);
+			        exit(EXIT_FAILURE);
+                }
             }
         }
     }
