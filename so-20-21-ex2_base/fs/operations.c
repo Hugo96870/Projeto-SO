@@ -10,6 +10,7 @@
 #define DELETE 2
 #define WRITE 1
 #define READ 0
+#define ONE 1
 
 extern inode_t inode_table[INODE_TABLE_SIZE];
 
@@ -178,14 +179,22 @@ int lookup_sub_node(char *name, DirEntry *entries) {
 
 int PrintToFile(char *file){
 
+	int locksVector[ONE];
+	int *counter = malloc(sizeof(int));
+	*counter = 0;
+
+	lookup("/", 1, locksVector, counter);
+
     FILE *outputf;
-        if ((outputf = fopen(file,"w")) == NULL){
-    printf("Error: Cannot open file.\n");
-    return -1;
+    if ((outputf = fopen(file,"w")) == NULL){
+    	printf("Error: Cannot open file.\n");
+    	return -1;
     }
 
     print_tecnicofs_tree(outputf);
     fclose(outputf);
+
+	openlocks(locksVector, counter);
 
     return 0;
 }

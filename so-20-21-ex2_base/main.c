@@ -24,17 +24,7 @@
 #define OUTDIM 512
 #define MAX_INPUT_SIZE 100
 
-pthread_mutex_t lockPrint = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t print = PTHREAD_COND_INITIALIZER;
-pthread_cond_t notPrint = PTHREAD_COND_INITIALIZER;
-
 int sockfd;
-int flag = 0;
-int flagPrint = 0;
-/*
-struct timespec start, finish;
-double timeSpent;
-*/
 
 int setSockAddrUn(char *path, struct sockaddr_un *addr) {
 
@@ -86,19 +76,7 @@ void* applyCommands(){
         if (numTokens < 2) {
             fprintf(stderr, "Error: invalid command in Queue\n");
             exit(EXIT_FAILURE);
-        } 
-
-        pthread_mutex_lock(&lockPrint);
-
-        if(token != 'p' && flagPrint == 1){
-            pthread_cond_wait(&notPrint,&lockPrint);
-            pthread_mutex_unlock(&lockPrint);
         }
-        else{
-            pthread_mutex_unlock(&lockPrint);
-        }
-        if(token != 'p')
-            flag+=1;
 
         int searchResult;
 
@@ -114,8 +92,6 @@ void* applyCommands(){
                         if(sendto(sockfd, out_buffer, sizeof(out_buffer), 0, (struct sockaddr *)&client_addr, addrlen) < 0){
                             printf("Erro: %d\n",errno);
                         }
-                        flag-=1;
-                        pthread_cond_signal(&print);
                         break;
                     case 'd':
                         printf("Create directory: %s\n", name);
@@ -124,8 +100,6 @@ void* applyCommands(){
                         if(sendto(sockfd, out_buffer, sizeof(out_buffer), 0, (struct sockaddr *)&client_addr, addrlen) < 0){
                             printf("Erro: %d\n",errno);
                         }
-                        flag-=1;
-                        pthread_cond_signal(&print);
                         break;
                     default:
                         fprintf(stderr, "Error: invalid node type\n");
@@ -147,8 +121,6 @@ void* applyCommands(){
                 else{
                     printf("Search: %s not found\n", name);
                 }
-                flag-=1;
-                pthread_cond_signal(&print);
                 break;
             case 'm':
                 if(numTokens != 3)
@@ -159,13 +131,8 @@ void* applyCommands(){
                 if(sendto(sockfd, out_buffer, sizeof(out_buffer), 0, (struct sockaddr *)&client_addr, addrlen) < 0){
                     printf("Erro: %d\n",errno);
                 }
-                flag-=1;
-                pthread_cond_signal(&print);
                 break;
             case 'p':
-                flagPrint = 1;
-                while(flag > 0)
-                    pthread_cond_wait(&print, &lockPrint);
                 if(numTokens != 2)
                     errorParse();
                 printf("PrintToFile: %s\n",name);
@@ -174,9 +141,6 @@ void* applyCommands(){
                 if(sendto(sockfd, out_buffer, sizeof(out_buffer), 0, (struct sockaddr *)&client_addr, addrlen) < 0){
                     printf("Erro: %d\n",errno);
                 }
-                flagPrint = 0;
-                pthread_cond_broadcast(&notPrint);
-                pthread_mutex_unlock(&lockPrint);
                 break;
             case 'd':
                 if(numTokens != 2)
@@ -187,8 +151,6 @@ void* applyCommands(){
                 if(sendto(sockfd, out_buffer, sizeof(out_buffer), 0, (struct sockaddr *)&client_addr, addrlen) < 0){
                     printf("Erro: %d\n",errno);
                 }
-                flag-=1;
-                pthread_cond_signal(&print);
                 break;
             default: { /* error */
                 fprintf(stderr, "Error: command to apply\n");
