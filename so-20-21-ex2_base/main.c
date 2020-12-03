@@ -44,8 +44,7 @@ void errorParse(){
 }
 
 
-/* Apply the commands that where processed from the file to inputCommands in the previous \
- * function (processInput).
+/* Apply the commands that where processed from the Client socket
  */
 void* applyCommands(){
     int *locksVector = malloc(sizeof(int) * 50);
@@ -185,6 +184,11 @@ void startThreads(int nrT){
     free(tid);
 }
 
+/* Creates socket.
+ * Input:
+ *  - name: path where the socket will be created
+ * Returns: number of socket
+ */
 int createSocket(char* name){
     struct sockaddr_un server_addr;
     socklen_t addrlen;
@@ -216,32 +220,12 @@ int main(int argc, char* argv[]) {
     /* init filesystem */
     init_fs();
 
-
+    /* init server socket*/
     int *sockfd = malloc(sizeof(int));
     *sockfd = createSocket(argv[2]);
 
-    /* init clock 
-    if(clock_gettime(CLOCK_REALTIME, &start)!=0){
-        printf("Error: cant open clock\n");
-        exit(EXIT_FAILURE);
-    }*/
-
-    /* process input */
+    /* initializes threads and processes input from clients */
     startThreads(atoi(argv[1]));
 
-    /* finish clock 
-    if(clock_gettime(CLOCK_REALTIME, &finish)!=0){
-        printf("Error: Cant close clock\n");
-        exit(EXIT_FAILURE);
-    }
-    timeSpent = (finish.tv_sec - start.tv_sec);
-    timeSpent += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf("TecnicoFS completed in %.4f seconds.\n", timeSpent);*/
-    
-    /* print tree 
-    print_tecnicofs_tree(outputf);*/
-
-    /* release allocated memory */
-    /*destroy_fs();*/
     exit(EXIT_SUCCESS);
 }

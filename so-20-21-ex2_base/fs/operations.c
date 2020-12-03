@@ -187,17 +187,17 @@ int lookup_sub_node(char *name, DirEntry *entries) {
  */
 int PrintToFile(char *file){
 
+	FILE *outputf;
 	int locksVector[ONE];
 	int *counter = malloc(sizeof(int));
 	*counter = 0;
 
-	lookup("/", 1, locksVector, counter);
-
-    FILE *outputf;
-    if ((outputf = fopen(file,"w")) == NULL){
+	if ((outputf = fopen(file,"w")) == NULL){
     	printf("Error: Cannot open file.\n");
     	return FAIL;
     }
+
+	lookup("/", WRITE, locksVector, counter);
 
     print_tecnicofs_tree(outputf);
     fclose(outputf);
